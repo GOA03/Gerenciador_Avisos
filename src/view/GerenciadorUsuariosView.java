@@ -2,7 +2,9 @@ package view;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumn;
 
 import org.json.simple.JSONObject;
 
@@ -24,7 +26,7 @@ public class GerenciadorUsuariosView extends JFrame {
     private DefaultTableModel tableModel;
     private JTextField txtRa;
     private JTextField txtNome;
-    private JPasswordField txtSenha;
+    private JTextField txtSenha;
     private JButton btnAdicionar;
     private JButton btnEditar;
     private JButton btnExcluir;
@@ -32,6 +34,17 @@ public class GerenciadorUsuariosView extends JFrame {
     private AdminMainView telaAdmin;
     private ClienteModel cliente;
     private String token;
+    
+    public static void main(String[] args) {
+        // Cria uma instância da classe GerenciadorUsuariosView
+        GerenciadorUsuariosView gerenciador = new GerenciadorUsuariosView(new ClienteModel(), "tokenExemplo");
+
+        // Chama o método atualizarTabelaUsuarios passando nulo para teste
+        gerenciador.atualizarTabelaUsuarios(null);
+
+        // Exibe a janela para visualização
+        gerenciador.setVisible(true);
+    }
 
     public GerenciadorUsuariosView(ClienteModel cliente, String token) {
         this.cliente = cliente; // Recebe o cliente
@@ -57,6 +70,21 @@ public class GerenciadorUsuariosView extends JFrame {
         String[] colunas = {"RA", "Nome", "Senha"};
         tableModel = new DefaultTableModel(colunas, 0);
         tableUsuarios = new JTable(tableModel);
+        
+        // Ajusta a largura da coluna "RA" para comportar 10 caracteres
+        TableColumn columnRA = tableUsuarios.getColumnModel().getColumn(0);
+        columnRA.setPreferredWidth(65); // Aproximadamente 8px por caractere
+        columnRA.setMaxWidth(70);
+        columnRA.setMinWidth(60);
+        
+        // Centraliza o conteúdo de todas as colunas
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+
+        for (int i = 0; i < tableUsuarios.getColumnModel().getColumnCount(); i++) {
+            tableUsuarios.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        }
+        
         JScrollPane scrollPane = new JScrollPane(tableUsuarios);
         scrollPane.setBounds(20, 50, 556, 200);
         contentPane.add(scrollPane);
@@ -72,22 +100,22 @@ public class GerenciadorUsuariosView extends JFrame {
         txtRa.setBounds(51, 268, 80, 25);
         contentPane.add(txtRa);
 
-        JLabel lblNome = new JLabel("Nome:");
-        lblNome.setFont(new Font("Poppins", Font.PLAIN, 12));
-        lblNome.setBounds(141, 270, 223, 20);
-        contentPane.add(lblNome);
-
         txtNome = new JTextField();
         txtNome.setFont(new Font("Poppins", Font.PLAIN, 12));
         txtNome.setBounds(190, 268, 163, 25);
         contentPane.add(txtNome);
+        
+        JLabel lblNome = new JLabel("Nome:");
+        lblNome.setFont(new Font("Poppins", Font.PLAIN, 12));
+        lblNome.setBounds(141, 270, 223, 20);
+        contentPane.add(lblNome);
 
         JLabel lblSenha = new JLabel("Senha:");
         lblSenha.setFont(new Font("Poppins", Font.PLAIN, 12));
         lblSenha.setBounds(363, 270, 50, 20);
         contentPane.add(lblSenha);
 
-        txtSenha = new JPasswordField();
+        txtSenha = new JTextField();
         txtSenha.setFont(new Font("Poppins", Font.PLAIN, 12));
         txtSenha.setBounds(410, 268, 166, 25);
         contentPane.add(txtSenha);
@@ -118,34 +146,60 @@ public class GerenciadorUsuariosView extends JFrame {
     }
 
     private void adicionarEventos() {
-        btnAdicionar.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String RA = txtRa.getText().trim();
-                String nome = txtNome.getText().trim();
-                String senha = new String(txtSenha.getPassword()).trim();
+    	
+    	btnAdicionar.addActionListener(new ActionListener() {
+    	    @Override
+    	    public void actionPerformed(ActionEvent e) {
+    	        String RA = txtRa.getText().trim();
+    	        String nome = txtNome.getText().trim().toUpperCase();
+    	        String senha = new String(txtSenha.getText()).trim().toUpperCase();
 
-                if (!RA.isEmpty() && !nome.isEmpty() && !senha.isEmpty()) {
-                    adicionarUsuario(RA, nome, senha);
-                } else {
-                    JOptionPane.showMessageDialog(null, "Preencha todos os campos!", "Erro", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
+    	        if (!RA.isEmpty() && !nome.isEmpty() && !senha.isEmpty()) {
+    	            // Cria um objeto UsuarioModel para enviar ao cliente
+    	            UsuarioModel usuario = new UsuarioModel();
+    	            usuario.setOperacao("cadastrarUsuario");
+    	            usuario.setRa(RA); // Define o RA do novo usuário
+    	            usuario.setNome(nome); // Define o Nome do novo usuário
+    	            usuario.setSenha(senha); // Define a Senha do novo usuário
+
+    	            // Converte o usuário para JSON
+    	            JSONController jsonController = new JSONController();
+    	            JSONObject res = jsonController.changeToJSON(usuario);
+
+    	            // Envia a mensagem ao cliente
+    	            cliente.enviarMensagem(res);
+    	        } else {
+    	            JOptionPane.showMessageDialog(null, "Preencha todos os campos!", "Erro", JOptionPane.ERROR_MESSAGE);
+    	        }
+    	    }
+    	});
 
         btnEditar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int selectedRow = tableUsuarios.getSelectedRow();
                 if (selectedRow != -1) {
-                    String RA = txtRa.getText().trim();
-                    String nome = txtNome.getText().trim();
-                    String senha = new String(txtSenha.getPassword()).trim();
-                    if (!RA.isEmpty() && !nome.isEmpty() && !senha.isEmpty()) {
-                        editarUsuario(selectedRow, RA, nome, senha);
-                    } else {
-                        JOptionPane.showMessageDialog(null, "Preencha todos os campos!", "Erro", JOptionPane.ERROR_MESSAGE);
-                    }
+                	
+                	// Obtém os valores dos campos de texto
+                	String ra = txtRa.getText().trim(); // Obtém o RA do campo de texto
+                	String nome = txtNome.getText().trim(); // Obtém o Nome do campo de texto
+                	String senha = new String(txtSenha.getText()).trim(); // Obtém a Senha do campo de texto
+                    
+                    // Cria um objeto UsuarioModel para enviar ao cliente
+                    UsuarioModel usuario = new UsuarioModel();
+                    usuario.setOperacao("editarUsuario");
+                    usuario.setRa(ra);
+                    usuario.setNome(nome);
+                    usuario.setSenha(senha);
+                    usuario.setToken(getToken());
+
+                    // Converte o usuário para JSON
+                    JSONController jsonController = new JSONController();
+                    JSONObject res = jsonController.changeUserUpdateToJSON(usuario);
+
+                    // Envia a mensagem ao cliente
+                    cliente.enviarMensagem(res);
+
                 } else {
                     JOptionPane.showMessageDialog(null, "Selecione um usuário para editar.", "Aviso", JOptionPane.WARNING_MESSAGE);
                 }
@@ -164,7 +218,6 @@ public class GerenciadorUsuariosView extends JFrame {
                     UsuarioModel usuario = new UsuarioModel();
                     usuario.setOperacao("excluirUsuario");
                     usuario.setRa(ra); // Define o RA do usuário a ser removido
-                    System.out.println("Token do gerenciador usuario: " + getToken());
                     usuario.setToken(getToken());
 
                     // Converte o usuário para JSON
@@ -174,8 +227,6 @@ public class GerenciadorUsuariosView extends JFrame {
                     // Envia a mensagem ao cliente
                     cliente.enviarMensagem(res);
 
-                    // Remove o usuário da tabela
-                    //removerUsuario(selectedRow);
                 } else {
                     JOptionPane.showMessageDialog(null, "Selecione um usuário para remover.", "Aviso", JOptionPane.WARNING_MESSAGE);
                 }
@@ -202,20 +253,40 @@ public class GerenciadorUsuariosView extends JFrame {
         });
     }
 
-    private void adicionarUsuario(String RA, String nome, String senha) {
+    public void adicionarUsuario() {
+    	
+    	String RA = txtRa.getText().trim();
+        String nome = txtNome.getText().trim().toUpperCase();
+        String senha = new String(txtSenha.getText()).trim().toUpperCase();
+        
         tableModel.addRow(new Object[]{RA, nome, senha});
         limparCampos();
     }
 
-    private void editarUsuario(int row, String ra, String nome, String senha) {
-        tableModel.setValueAt(ra, row, 0);
-        tableModel.setValueAt(nome, row, 1);
-        tableModel.setValueAt(senha, row, 2);
-        limparCampos();
+    public void editarUsuario() {
+    	
+    	int selectedRow = tableUsuarios.getSelectedRow();
+        if (selectedRow != -1) {
+        	
+        	// Obtém os valores dos campos de texto
+        	String ra = txtRa.getText().trim(); // Obtém o RA do campo de texto
+        	String nome = txtNome.getText().trim(); // Obtém o Nome do campo de texto
+        	String senha = new String(txtSenha.getText()).trim(); // Obtém a Senha do campo de texto
+        	
+        	tableModel.setValueAt(ra, selectedRow, 0);
+        	tableModel.setValueAt(nome, selectedRow, 1);
+        	tableModel.setValueAt(senha, selectedRow, 2);
+        	limparCampos();
+        }
     }
 
-    private void removerUsuario(int row) {
-        tableModel.removeRow(row);
+    public void removerUsuario() {
+    	
+    	int selectedRow = tableUsuarios.getSelectedRow();
+        if (selectedRow != -1) {
+        	
+        	tableModel.removeRow(selectedRow);
+        }
     }
 
     private void limparCampos() {
@@ -226,8 +297,16 @@ public class GerenciadorUsuariosView extends JFrame {
 
     public void atualizarTabelaUsuarios(List<UsuarioModel> usuarios) {
         tableModel.setRowCount(0); // Limpa a tabela antes de adicionar novos dados
-        for (UsuarioModel usuario : usuarios) {
-            tableModel.addRow(new Object[]{usuario.getRa(), usuario.getNome(), usuario.getSenha()});
+        if (usuarios != null) {
+        	
+        	for (UsuarioModel usuario : usuarios) {
+        		tableModel.addRow(new Object[]{usuario.getRa(), usuario.getNome(), usuario.getSenha()});
+        	}
+        } else {
+        	
+        	// Adiciona uma linha com a mensagem de que não há usuários cadastrados
+        	tableModel.addRow(new Object[]{"null", "Não há usuários cadastrados", "null"});
+        	JOptionPane.showMessageDialog(this, "Não há usuários cadastrados.", "Informação", JOptionPane.INFORMATION_MESSAGE);
         }
     }
 
@@ -251,4 +330,9 @@ public class GerenciadorUsuariosView extends JFrame {
     public String getToken() {
 		return token;
 	}
+
+    public void mostrarMsg(String mensagem) {
+        JOptionPane.showMessageDialog(null, mensagem);
+    }
+
 }

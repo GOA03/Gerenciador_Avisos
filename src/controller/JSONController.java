@@ -187,4 +187,44 @@ public class JSONController {
             setter.accept(value.toString());
         }
     }
+
+    @SuppressWarnings("unchecked")
+	public JSONObject changeUserUpdateToJSON(UsuarioModel usuario) {
+        JSONObject user = new JSONObject();
+        user.put("operacao", "editarUsuario"); // Define o valor fixo para "operacao"
+        user.put("token", usuario.getToken()); // Adiciona o token diretamente
+
+        JSONObject usuarioObj = new JSONObject(); // Cria o objeto interno "usuario"
+        addIfNotNull(usuarioObj, "ra", usuario.getRa());
+        addIfNotNull(usuarioObj, "senha", usuario.getSenha());
+        addIfNotNull(usuarioObj, "nome", usuario.getNome());
+
+        user.put("usuario", usuarioObj); // Adiciona o objeto interno ao JSON principal
+        return user;
+    }
+
+    // Converte uma string JSON em UsuarioModel
+    public UsuarioModel changeJSONToUser(String jsonString) {
+        try {
+            JSONObject jsonObject = parseJSON(jsonString); // Parseia o JSON principal
+
+            // Extrai o objeto "usuario" do JSON
+            JSONObject usuarioJson = (JSONObject) jsonObject.get("usuario");
+
+            UsuarioModel usuario = new UsuarioModel();
+
+            // Preenche o UsuarioModel com os dados do objeto "usuario"
+            usuario.setRa(getStringFromJson(usuarioJson, "ra"));
+            usuario.setNome(getStringFromJson(usuarioJson, "nome"));
+            usuario.setSenha(getStringFromJson(usuarioJson, "senha"));
+
+            return usuario; // Retorna o objeto UsuarioModel preenchido
+        } catch (ParseException e) {
+            System.err.println("Erro ao parsear JSON: " + e.getMessage());
+            return null; // Retorna null em caso de erro
+        } catch (ClassCastException e) {
+            System.err.println("Erro de tipo ao processar JSON: " + e.getMessage());
+            return null; // Retorna null em caso de erro
+        }
+    }
 }

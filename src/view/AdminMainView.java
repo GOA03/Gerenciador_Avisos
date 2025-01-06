@@ -71,7 +71,6 @@ public class AdminMainView extends JFrame {
              
                 UsuarioModel usuario = new UsuarioModel();
                 usuario.setOperacao("listarUsuarios");
-                System.out.println("Token tela admin: " + token);
                 usuario.setToken(token); // Usando o token do cliente
 
                 // Converte o usuário para JSON

@@ -31,6 +31,7 @@ public class ClienteModel {
     private CadastroView cadastroView;
     private MainView telaPrincipal;
 	private AdminMainView telaAdmin;
+	private GerenciadorUsuariosView telaGerenciadorUsuario;
 
     // Método para conectar ao servidor
     public synchronized void conectar(String ip, int porta) throws IOException {
@@ -99,8 +100,11 @@ public class ClienteModel {
             case "listarUsuarios":
             	tratarListaUsuario(usuarios);
                 break;
-            case "excluirUsuarios":
-            	//tratarExcluirUsuario();
+            case "excluirUsuario":
+            	tratarExcluirUsuario(status, mensagem);
+                break;
+            case "editarUsuario":
+            	tratarEditarUsuario(status, mensagem);
                 break;
             default:
                 JOptionPane.showMessageDialog(null, mensagem + ": " + operacao);
@@ -133,13 +137,23 @@ public class ClienteModel {
 
     // Lida com cadastro
     private void tratarCadastro(int status, String mensagem) {
-        if (status == 201 || status == 200) {
-            JOptionPane.showMessageDialog(null, "Cadastro realizado com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
-            fecharTelaCadastro();
-            new LoginView(this).setVisible(true);
-        } else if (status == 404 || status == 422 || status == 401) {
-            tratarErro(null, mensagem, "Erro de Cadastro");
-        }
+    	if(telaGerenciadorUsuario == null) {
+    		
+    		if (status == 201 || status == 200) {
+    			JOptionPane.showMessageDialog(null, "Cadastro realizado com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+    			fecharTelaCadastro();
+    			new LoginView(this).setVisible(true);
+    		} else if (status == 404 || status == 422 || status == 401) {
+    			tratarErro(null, mensagem, "Erro de Cadastro");
+    		}
+    	} else {
+    		if (status == 201 || status == 200) {
+    			JOptionPane.showMessageDialog(null, "Cadastro realizado com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+    			telaGerenciadorUsuario.adicionarUsuario();
+    		} else if (status == 404 || status == 422 || status == 401) {
+    			tratarErro(null, mensagem, "Erro de Cadastro");
+    		}
+    	}
     }
 
     // Lida com logout
@@ -163,9 +177,40 @@ public class ClienteModel {
     		String token = telaAdmin.getToken();
     		GerenciadorUsuariosView gerenciadorUsuario = new GerenciadorUsuariosView(this, token);
         	gerenciadorUsuario.setTelaAdmin(telaAdmin);
+        	telaGerenciadorUsuario = gerenciadorUsuario;
         	gerenciadorUsuario.atualizarTabelaUsuarios(usuarios);
             gerenciadorUsuario.setVisible(true);
 		} else { System.out.println("Sem tela de Admin"); }
+    }
+    
+    private void tratarExcluirUsuario(int status, String mensagem){
+    	
+    	if(telaGerenciadorUsuario != null) {
+    		
+    		if(status == 201) {
+    			
+    			telaGerenciadorUsuario.removerUsuario();
+    			telaGerenciadorUsuario.mostrarMsg(mensagem);
+    		} else {
+    			
+    			telaGerenciadorUsuario.mostrarMsg(mensagem);
+    		}
+    	}
+    }
+    
+    private void tratarEditarUsuario(int status, String mensagem){
+    	
+    	if(telaGerenciadorUsuario != null) {
+    		
+    		if(status == 201) {
+    			
+    			telaGerenciadorUsuario.editarUsuario();
+    			telaGerenciadorUsuario.mostrarMsg(mensagem);
+    		} else {
+    			
+    			telaGerenciadorUsuario.mostrarMsg(mensagem);
+    		}
+    	}
     }
 
     // Lida com erros exibindo mensagens apropriadas

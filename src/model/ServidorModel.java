@@ -103,7 +103,10 @@ public class ServidorModel {
                 processarListarUsuarios(saida, jsonController, listener);
                 break;
             case "excluirUsuario":
-            	processarExcluirUsuarios(mensagemRecebida, saida, jsonController);
+            	processarExcluirUsuarios(mensagemRecebida, saida, jsonController, listener);
+                break;
+            case "editarUsuario":
+            	processarEditarUsuarios(mensagemRecebida, saida, jsonController, listener);
                 break;
             default:
                 enviarErroOperacaoInvalida(operacao, saida, jsonController, listener);
@@ -205,14 +208,14 @@ public class ServidorModel {
 
             // Verificar se a lista de usuários está vazia
             if (usuarios.isEmpty()) {
-                resposta.setStatus(200); // Status para lista vazia
+                resposta.setStatus(201); // Status para lista vazia
                 resposta.setUsuarios(usuarios); // Retorna um array vazio
             } else {
                 resposta.setStatus(201); // Status para sucesso
                 resposta.setUsuarios(usuarios); // Define a lista de usuários
             }
         } catch (SQLException e) {
-            resposta.setStatus(500); // Status de erro interno do servidor
+            resposta.setStatus(401); // Status de erro interno do servidor
             resposta.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
         } finally {
             // Enviar a resposta ao cliente
@@ -220,51 +223,108 @@ public class ServidorModel {
         }
     }
     
-    private void processarExcluirUsuarios(String mensagemRecebida, PrintWriter saida, JSONController jsonController) {
+    private void processarExcluirUsuarios(String mensagemRecebida, PrintWriter saida, JSONController jsonController, ServidorListener listener) {
         UsuarioModel usuario = jsonController.changeRegisterJSON(mensagemRecebida);
         RespostaModel resposta = new RespostaModel();
         String token = usuario.getToken();
-        System.out.println("TOKEN PROCESSAR EXCLUIR SERVIDOR MODEL: " + token);
 
         if (usuario == null || usuario.getRa() == null) {
             resposta.setStatus(401);
             resposta.setMsg("Dados inválidos.");
         } else {
             try {
+                Connection conn = BancoDados.conectar();
+                UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
+                
+                // Verifica se o RA existe no banco de dados
+                String raExistente = usuarioDAO.getRA(usuario.getRa());
+                if (raExistente == null) {
+                    resposta.setStatus(401);
+                    resposta.setMsg("Usuário não encontrado no banco de dados.");
+                    enviarResposta(resposta, saida, jsonController, listener);
+                    return; // Sai do método se o usuário não for encontrado
+                }
+
                 // Verifica se o token é igual a 2376342
                 if ("2376342".equals(token)) {
                     // Permite a exclusão de qualquer usuário
-                    Connection conn = BancoDados.conectar();
-                    UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
-                    usuarioDAO.removerUsuarioCandidato(usuario); // Chama o método para remover o usuário do banco
-                    resposta.setStatus(200);
+                    usuarioDAO.removerUsuario(usuario); // Chama o método para remover o usuário do banco
+                    resposta.setStatus(201);
                     resposta.setOperacao("excluirUsuario");
                     resposta.setMsg("Usuário removido com sucesso.");
                 } else {
                     // Permite a exclusão apenas se o RA for igual ao token
                     if (usuario.getRa().equals(token)) {
-                        Connection conn = BancoDados.conectar();
-                        UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
-                        usuarioDAO.removerUsuarioCandidato(usuario); // Chama o método para remover o usuário do banco
-                        resposta.setStatus(200);
+                        usuarioDAO.removerUsuario(usuario); // Chama o método para remover o usuário do banco
+                        resposta.setStatus(201);
                         resposta.setOperacao("excluirUsuario");
                         resposta.setMsg("Usuário removido com sucesso.");
                     } else {
                         // Caso contrário, recusa a permissão
-                        resposta.setStatus(403); // Permissão negada
+                        resposta.setStatus(401); // Permissão negada
                         resposta.setMsg("Permissão recusada: você não tem autorização para excluir este usuário.");
                     }
                 }
             } catch (SQLException e) {
-                resposta.setStatus(500);
+                resposta.setStatus(401);
                 resposta.setMsg("Erro ao acessar o banco de dados: " + e.getMessage());
             } catch (IOException e) {
-                resposta.setStatus(500);
+                resposta.setStatus(401);
                 resposta.setMsg("Erro de I/O: " + e.getMessage());
+            } finally {
+                try {
+                    BancoDados.desconectar(); // Certifique-se de desconectar após a operação
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
         }
+        // Envia a resposta ao cliente
+        enviarResposta(resposta, saida, jsonController, listener);
+    }
+    
+    private void processarEditarUsuarios(String mensagemRecebida, PrintWriter saida, JSONController jsonController, ServidorListener listener) {
+    	System.out.println("Mensagem recebida servidor model: " + mensagemRecebida);
+        UsuarioModel usuario = jsonController.changeJSONToUser(mensagemRecebida);
+        RespostaModel resposta = new RespostaModel();
 
-        enviarResposta(resposta, saida, jsonController, null); // Envia a resposta ao cliente
+        resposta.setOperacao("editarUsuario");
+        
+        if (usuario == null || usuario.getRa() == null || usuario.getNome() == null || usuario.getSenha() == null) {
+            resposta.setStatus(401);
+            resposta.setMsg("Dados inválidos.");
+        } else {
+            try {
+                Connection conn = BancoDados.conectar();
+                UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
+
+                // Verifica se o RA existe no banco de dados
+                String raExistente = usuarioDAO.getRA(usuario.getRa());
+                if (raExistente == null) {
+                    resposta.setStatus(401);
+                    resposta.setMsg("Usuário não encontrado no banco de dados.");
+                } else {
+                    // Atualiza as informações do usuário
+                    usuarioDAO.atualizarUsuario(usuario);
+                    resposta.setStatus(201);
+                    resposta.setMsg("Usuário atualizado com sucesso.");
+                }
+            } catch (SQLException e) {
+                resposta.setStatus(401);
+                resposta.setMsg("Erro ao acessar o banco de dados: " + e.getMessage());
+            } catch (IOException e) {
+                resposta.setStatus(401);
+                resposta.setMsg("Erro de I/O: " + e.getMessage());
+            } finally {
+                try {
+                    BancoDados.desconectar(); // Certifique-se de desconectar após a operação
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        // Envia a resposta ao cliente
+        enviarResposta(resposta, saida, jsonController, listener);
     }
 
     // Envia mensagem de erro para operação inválida
