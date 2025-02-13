@@ -1,8 +1,18 @@
 package view;
 
 import javax.swing.*;
-import java.awt.*;
+
+import org.json.simple.JSONObject;
+
+import controller.JSONController;
+import model.ClienteModel;
+import model.UsuarioModel;
+
 import java.awt.event.ActionListener;
+import java.awt.GridBagLayout;
+import java.awt.GridBagConstraints;
+import java.awt.Insets;
+import java.awt.Dimension;
 
 public class UsuarioInfoView extends JFrame {
 
@@ -13,8 +23,15 @@ public class UsuarioInfoView extends JFrame {
     private JLabel lblSenha;
     private JButton btnFechar;
     private JButton btnAtualizar;
+    private JButton btnExcluir;
+    private MainView telaPrincipal;
+    private ClienteModel cliente;
+	private String nome;
+	private String ra;
+	private String senha;
 
-    public UsuarioInfoView(String token) {
+    public UsuarioInfoView(ClienteModel cliente, String token) {
+        this.cliente = cliente;
         initializeFrame();
         initializeComponents(token);
     }
@@ -22,49 +39,133 @@ public class UsuarioInfoView extends JFrame {
     private void initializeFrame() {
         setTitle("Informações do Usuário");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(400, 250);
-        setLocationRelativeTo(null); // Centraliza a janela
+        setSize(350, 220);
+        setMinimumSize(new Dimension(350, 220));
+        setLocationRelativeTo(null);
     }
 
     private void initializeComponents(String token) {
-        contentPane = new JPanel();
-        contentPane.setLayout(new GridLayout(5, 2)); // Layout em grade para organizar os componentes
+        contentPane = new JPanel(new GridBagLayout());
+        contentPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         setContentPane(contentPane);
 
-        // Adicionando os rótulos e informações do usuário
-        addLabel("RA:");
-        lblRa = new JLabel(/*usuario.getRa()*/);
-        contentPane.add(lblRa);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        addLabel("Nome:");
-        lblNome = new JLabel(/*usuario.getNome()*/);
-        contentPane.add(lblNome);
+        addLabel("RA:", 0, 0, gbc);
+        lblRa = addValueLabel("<RA>", 1, 0, gbc);
 
-        addLabel("Senha:");
-        lblSenha = new JLabel(/*usuario.getSenha()*/);
-        contentPane.add(lblSenha);
+        addLabel("Nome:", 0, 1, gbc);
+        lblNome = addValueLabel("<Nome>", 1, 1, gbc);
 
-        // Botão para atualizar as informações do usuário
-        btnAtualizar = new JButton("Atualizar");
-        btnAtualizar.addActionListener(createUpdateActionListener(token));
-        contentPane.add(btnAtualizar);
+        addLabel("Senha:", 0, 2, gbc);
+        lblSenha = addValueLabel("<Senha>", 1, 2, gbc);
 
-        // Botão para fechar a janela
-        btnFechar = new JButton("Fechar");
-        btnFechar.addActionListener(e -> dispose()); // Fecha a janela ao clicar
-        contentPane.add(btnFechar);
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new GridBagLayout());
+        GridBagConstraints buttonGbc = new GridBagConstraints();
+        buttonGbc.insets = new Insets(5, 5, 5, 5);
+
+        btnAtualizar = createButton("Atualizar", e -> abrirFormularioAtualizacao(token));
+        btnAtualizar.setPreferredSize(new Dimension(100, 25));
+        buttonGbc.gridx = 0;
+        buttonPanel.add(btnAtualizar, buttonGbc);
+
+        btnExcluir = createButton("Excluir", e -> excluirUsuario(token));
+        btnExcluir.setPreferredSize(new Dimension(100, 25));
+        btnExcluir.setToolTipText("Excluir Usuário");
+        buttonGbc.gridx = 1;
+        buttonPanel.add(btnExcluir, buttonGbc);
+
+        btnFechar = createButton("Fechar", e -> voltarParaMainView());
+        btnFechar.setPreferredSize(new Dimension(100, 25));
+        buttonGbc.gridx = 2;
+        buttonPanel.add(btnFechar, buttonGbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
+        contentPane.add(buttonPanel, gbc);
+        
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                cliente.deslogarUsuario(); // Desloga o usuário ao fechar a janela
+                System.exit(0); // Encerra a aplicação
+            }
+        });
     }
 
-    private void addLabel(String text) {
-        contentPane.add(new JLabel(text));
+    private JLabel addLabel(String text, int x, int y, GridBagConstraints gbc) {
+        JLabel label = new JLabel(text);
+        label.setHorizontalAlignment(SwingConstants.RIGHT);
+        gbc.gridx = x;
+        gbc.gridy = y;
+        contentPane.add(label, gbc);
+        return label;
     }
 
-    private ActionListener createUpdateActionListener(String token) {
-        return e -> abrirFormularioAtualizacao(token); // Abre o formulário de atualização
+    private JLabel addValueLabel(String text, int x, int y, GridBagConstraints gbc) {
+        JLabel label = new JLabel(text);
+        label.setHorizontalAlignment(SwingConstants.LEFT);
+        gbc.gridx = x;
+        gbc.gridy = y;
+        contentPane.add(label, gbc);
+        return label;
+    }
+
+    private JButton createButton(String text, ActionListener action) {
+        JButton button = new JButton(text);
+        button.addActionListener(action);
+        return button;
     }
 
     private void abrirFormularioAtualizacao(String token) {
-        // Cria um novo formulário para atualizar as informações do usuário
-        new UsuarioUpdateView(token).setVisible(true);
+        dispose();
+        new UsuarioUpdateView(cliente, token, this, this.nome, this.senha).setVisible(true);
+    }
+
+    private void excluirUsuario(String token) {
+        int confirm = JOptionPane.showConfirmDialog(this, "Tem certeza que deseja excluir este usuário?", "Confirmação de Exclusão", JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            // Cria um objeto UsuarioModel para enviar ao servidor
+            UsuarioModel usuario = new UsuarioModel();
+            usuario.setOperacao("excluirUsuario");
+            usuario.setRa(this.ra); // Usando o RA do usuário
+            usuario.setToken(token); // Usando o token do cliente
+
+            // Converte o usuário para JSON
+            JSONController jsonController = new JSONController();
+            JSONObject res = jsonController.changeToJSON(usuario);
+
+            // Envia a requisição ao servidor
+            if (this.cliente != null) {
+                this.cliente.enviarMensagem(res);
+            }
+        }
+    }
+
+    private void voltarParaMainView() {
+        dispose();
+        if (telaPrincipal != null) {
+            telaPrincipal.setVisible(true);
+        }
+    }
+
+    public void setUsuarioInfo(UsuarioModel usuario) {
+    	
+    	this.nome = usuario.getNome();
+    	this.ra = usuario.getRa();
+    	this.senha = usuario.getSenha();
+    	
+        lblRa.setText(usuario.getRa());
+        lblNome.setText(usuario.getNome());
+        lblSenha.setText(usuario.getSenha());
+    }
+
+    public void setTelaPrincipal(MainView telaPrincipal) {
+        this.telaPrincipal = telaPrincipal;
     }
 }

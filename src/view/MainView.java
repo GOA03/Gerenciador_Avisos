@@ -8,8 +8,6 @@ import model.ClienteModel;
 import model.UsuarioModel;
 
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
 public class MainView extends JFrame {
 
@@ -58,33 +56,53 @@ public class MainView extends JFrame {
         btnLogout.addActionListener(e -> logoutUsuario());
 
         // Adicionar ActionListener para o botão de informações do usuário
-        btnInfoUsuario.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (token != null) {
-                    new UsuarioInfoView(token).setVisible(true);
-                } else {
-                    JOptionPane.showMessageDialog(MainView.this, "Usuário não encontrado.", "Erro", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
+        btnInfoUsuario.addActionListener(e -> mostrarInformacoesUsuario());
 
         // Adicionar ActionListener para o botão de avisos
-        btnAvisos.addActionListener(new ActionListener() {
+        btnAvisos.addActionListener(e -> {
+            ocultarTela();
+            UsuarioModel usuario = new UsuarioModel();
+			usuario.setOperacao("listarUsuarioCategorias");
+			usuario.setToken(token); // Usando o token do cliente
+			usuario.setRa(token);
+
+			// Converte o usuário para JSON
+			JSONController jsonController = new JSONController();
+			JSONObject res = jsonController.changeToJSON(usuario);
+
+			// Envia a requisição ao servidor
+			cliente.enviarMensagem(res);
+        });
+        
+        addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
-            public void actionPerformed(ActionEvent e) {
-            	ocultarTela();
-                AvisosView telaAvisos = new AvisosView(cliente, token);
-                telaAvisos.setTelaPrincipal(MainView.this);
-                telaAvisos.setVisible(true);
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                cliente.deslogarUsuario(); // Desloga o usuário ao fechar a janela
+                System.exit(0); // Encerra a aplicação
             }
         });
+    }
+
+    public void mostrarInformacoesUsuario() {
+        this.setVisible(false);
+        
+        UsuarioModel usuario = new UsuarioModel();
+        usuario.setOperacao("localizarUsuario");
+        usuario.setToken(token); // Usando o token do cliente
+        usuario.setRa(token); // Usando o token do cliente
+
+        // Converte o usuário para JSON
+        JSONController jsonController = new JSONController();
+        JSONObject res = jsonController.changeToJSON(usuario);
+        
+        // Envia a requisição ao servidor
+        cliente.enviarMensagem(res);
     }
 
     private void logoutUsuario() {
         UsuarioModel usuario = new UsuarioModel();
         usuario.setOperacao("logout");
-        usuario.setRa(token); // Utilizando o token para o logout
+        usuario.setToken(token); // Utilizando o token para o logout
 
         JSONController jsonController = new JSONController();
         JSONObject res = jsonController.changeLogoutToJSON(usuario);
@@ -97,14 +115,18 @@ public class MainView extends JFrame {
     }
     
     private void ocultarTela() {
-    	this.setVisible(false);
+        this.setVisible(false);
     }
+    
+    public String getToken() {
+		return token;
+	}
 
 	public UsuarioModel getUsuario() {
-		return usuario;
-	}
+        return usuario;
+    }
 
-	public void setUsuario(UsuarioModel usuario) {
-		this.usuario = usuario;
-	}
+    public void setUsuario(UsuarioModel usuario) {
+        this.usuario = usuario;
+    }
 }

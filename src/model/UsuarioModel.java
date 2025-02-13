@@ -7,7 +7,7 @@ public class UsuarioModel {
     private String senha;
     private String nome;
     private String operacao;
-    private boolean admin;
+    private boolean logado;
     
     public String getRa() {
         return ra;
@@ -43,15 +43,17 @@ public class UsuarioModel {
 		return token;
 	}
     
-    public boolean isAdmin() {
-    	return admin;
-    }
-    public void setAdmin(boolean admin) {
-    	this.admin = admin;
-    }
-    
+    public boolean isLogado() {
+		return logado;
+	}
+    public void setLogado(boolean logado) {
+		this.logado = logado;
+	}
 	@Override
-    public String toString() {
-        return "UsuarioModel [ra=" + ra + ", senha=" + senha + ", nome=" + nome + ", operacao=" + operacao + "]";
-    }
+	public String toString() {
+		return "UsuarioModel [ra=" + ra + ", token=" + token + ", senha=" + senha + ", nome=" + nome + ", operacao="
+				+ operacao + ", logado=" + logado + "]";
+	}
+	
+	
 }

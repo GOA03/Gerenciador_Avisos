@@ -13,7 +13,7 @@ import model.UsuarioModel;
 
 public class CadastroController {
 
-	public CadastroEnum validarCadastro(UsuarioModel usuario) throws IOException {
+	public CadastroEnum validarCadastro(UsuarioModel usuario) throws IOException, SQLException {
 
 		Boolean nomeValido = validarNome(usuario.getNome());
 		RaEnum raValido = validarRa(usuario.getRa());
@@ -56,13 +56,15 @@ public class CadastroController {
 		return true;
 	}
 
-	private RaEnum validarRa(String ra) throws IOException {
+	private RaEnum validarRa(String ra) throws IOException, SQLException {
 		// Verificar se o RA é válido (7 dígitos numéricos sem "a" como prefixo)
 		if (ra == null || ra.length() != 7 || !ra.matches("\\d{7}")) {
 			return RaEnum.CARACTERES_INVALIDOS;
 		}
 
-		try (Connection conn = BancoDados.conectar()) {
+		try {
+			Connection conn = null;
+			conn = BancoDados.conectar();
 			Boolean resposta = new UsuarioDAO(conn).validarRa(ra); // Valida se o RA já existe
 			if (resposta) {
 				return RaEnum.SUCESSO;
@@ -72,6 +74,8 @@ public class CadastroController {
 		} catch (SQLException e) {
 			e.printStackTrace();
 			return RaEnum.ERRO;
+		} finally {
+			BancoDados.desconectar();
 		}
 	}
 

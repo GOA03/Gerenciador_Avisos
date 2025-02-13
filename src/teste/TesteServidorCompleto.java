@@ -6,7 +6,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
-public class TesteServidor {
+public class TesteServidorCompleto {
     private static final String HOST = "127.0.0.1"; // Endereço IP do servidor
     private static final int PORT = 3; // Porta do servidor
 
@@ -27,6 +27,7 @@ public class TesteServidor {
         System.out.println("Iniciando testes no servidor...");
 
         // Testes de erro global
+        System.out.println("\nTestes de Erro Global:");
         enviarMensagem(out, in, "{\"status\": 401, \"mensagem\": \"Não foi possível processar a requisição.\"}");
         enviarMensagem(out, in, "{\"status\": 401, \"mensagem\": \"Operação não encontrada.\"}");
         enviarMensagem(out, in, "{\"status\": 401, \"operacao\": \"login\", \"mensagem\": \"Falha ao processar requisição, ocorreu um erro interno no servidor.\"}");

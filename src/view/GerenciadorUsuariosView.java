@@ -34,17 +34,6 @@ public class GerenciadorUsuariosView extends JFrame {
     private AdminMainView telaAdmin;
     private ClienteModel cliente;
     private String token;
-    
-    public static void main(String[] args) {
-        // Cria uma instância da classe GerenciadorUsuariosView
-        GerenciadorUsuariosView gerenciador = new GerenciadorUsuariosView(new ClienteModel(), "tokenExemplo");
-
-        // Chama o método atualizarTabelaUsuarios passando nulo para teste
-        gerenciador.atualizarTabelaUsuarios(null);
-
-        // Exibe a janela para visualização
-        gerenciador.setVisible(true);
-    }
 
     public GerenciadorUsuariosView(ClienteModel cliente, String token) {
         this.cliente = cliente; // Recebe o cliente
@@ -141,6 +130,14 @@ public class GerenciadorUsuariosView extends JFrame {
         btnVoltar.setFont(new Font("Poppins", Font.PLAIN, 12));
         btnVoltar.setBounds(412, 312, 100, 25);
         contentPane.add(btnVoltar);
+        
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                cliente.deslogarUsuario(); // Desloga o usuário ao fechar a janela
+                System.exit(0); // Encerra a aplicação
+            }
+        });
 
         adicionarEventos();
     }
@@ -174,37 +171,41 @@ public class GerenciadorUsuariosView extends JFrame {
     	    }
     	});
 
-        btnEditar.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int selectedRow = tableUsuarios.getSelectedRow();
-                if (selectedRow != -1) {
-                	
-                	// Obtém os valores dos campos de texto
-                	String ra = txtRa.getText().trim(); // Obtém o RA do campo de texto
-                	String nome = txtNome.getText().trim(); // Obtém o Nome do campo de texto
-                	String senha = new String(txtSenha.getText()).trim(); // Obtém a Senha do campo de texto
-                    
-                    // Cria um objeto UsuarioModel para enviar ao cliente
-                    UsuarioModel usuario = new UsuarioModel();
-                    usuario.setOperacao("editarUsuario");
-                    usuario.setRa(ra);
-                    usuario.setNome(nome);
-                    usuario.setSenha(senha);
-                    usuario.setToken(getToken());
+    	btnEditar.addActionListener(new ActionListener() {
+    	    @Override
+    	    public void actionPerformed(ActionEvent e) {
+    	        int selectedRow = tableUsuarios.getSelectedRow();
+    	        if (selectedRow != -1) {
+    	            // Obtém os valores dos campos de texto
+    	            String ra = txtRa.getText().trim(); // Obtém o RA do campo de texto
+    	            String nome = txtNome.getText().trim().toUpperCase(); // Obtém o Nome do campo de texto
+    	            String senha = new String(txtSenha.getText()).trim().toUpperCase(); // Obtém a Senha do campo de texto
+    	            
+    	            // Cria um objeto UsuarioModel para enviar ao cliente
+    	            UsuarioModel usuario = new UsuarioModel();
+    	            usuario.setOperacao("editarUsuario");
+    	            usuario.setRa(ra);
+    	            usuario.setNome(nome);
+    	            usuario.setSenha(senha);
+    	            usuario.setToken(getToken());
 
-                    // Converte o usuário para JSON
-                    JSONController jsonController = new JSONController();
-                    JSONObject res = jsonController.changeUserUpdateToJSON(usuario);
+    	            // Converte o usuário para JSON
+    	            JSONController jsonController = new JSONController();
+    	            JSONObject res = jsonController.changeUserUpdateToJSON(usuario);
 
-                    // Envia a mensagem ao cliente
-                    cliente.enviarMensagem(res);
+    	            try {
+    	                // Envia a mensagem ao cliente
+    	                cliente.enviarMensagem(res);
+    	            } catch (Exception ex) {
+    	                // Tratamento de exceção ao enviar a mensagem
+    	                JOptionPane.showMessageDialog(null, "Erro ao editar usuário: " + ex.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
+    	            }
 
-                } else {
-                    JOptionPane.showMessageDialog(null, "Selecione um usuário para editar.", "Aviso", JOptionPane.WARNING_MESSAGE);
-                }
-            }
-        });
+    	        } else {
+    	            JOptionPane.showMessageDialog(null, "Selecione um usuário para editar.", "Aviso", JOptionPane.WARNING_MESSAGE);
+    	        }
+    	    }
+    	});
 
         btnExcluir.addActionListener(new ActionListener() {
             @Override
