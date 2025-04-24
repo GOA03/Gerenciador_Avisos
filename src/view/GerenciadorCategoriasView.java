@@ -235,7 +235,7 @@ public class GerenciadorCategoriasView extends JFrame {
 		resposta.setOperacao("salvarCategoria"); // Define a operação
 		resposta.setToken(token); // Usando o token do cliente
 		categoria.setId(0); // ID 0 para indicar um novo registro
-		categoria.setNome(nomeCategoria); // Define o nome da categoria
+		categoria.setNome(nomeCategoria.toUpperCase()); // Define o nome da categoria
 		resposta.setCategoria(categoria); // Adiciona a categoria ao objeto resposta
 
 		// Converte a resposta para JSON
@@ -258,7 +258,7 @@ public class GerenciadorCategoriasView extends JFrame {
 		resposta.setOperacao("salvarCategoria"); // Define a operação
 		resposta.setToken(token); // Usando o token do cliente
 		categoria.setId(idCategoria); // ID 0 para indicar um novo registro
-		categoria.setNome(nomeCategoria); // Define o nome da categoria
+		categoria.setNome(nomeCategoria.toUpperCase()); // Define o nome da categoria
 		resposta.setCategoria(categoria); // Adiciona a categoria ao objeto resposta
 
 		// Converte a resposta para JSON

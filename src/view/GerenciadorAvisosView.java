@@ -262,7 +262,7 @@ public class GerenciadorAvisosView extends JFrame {
 
         // Criação do JSON a ser enviado ao servidor usando changeToJSON
         JSONController jsonController = new JSONController();
-        JSONObject json = jsonController.changeToJSON(resposta);
+        JSONObject json = jsonController.changeToJSONSalvarCategoria(resposta);
 
         // Envia a mensagem ao cliente
         cliente.enviarMensagem(json);
@@ -284,7 +284,7 @@ public class GerenciadorAvisosView extends JFrame {
 
         // Converte a resposta para JSON
         JSONController jsonController = new JSONController();
-        JSONObject res = jsonController.changeToJSON(resposta);
+        JSONObject res = jsonController.changeToJSONSalvarCategoria(resposta);
 
         // Envia a mensagem ao cliente
         cliente.enviarMensagem(res);
@@ -315,7 +315,7 @@ public class GerenciadorAvisosView extends JFrame {
 
         // Converte a resposta para JSON
         JSONController jsonController = new JSONController();
-        JSONObject json = jsonController.changeToJSON(resposta);
+        JSONObject json = jsonController.changeToJSONCategoria(resposta);
 
         // Envia a mensagem ao cliente
         cliente.enviarMensagem(json);

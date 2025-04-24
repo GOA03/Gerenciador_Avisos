@@ -1,7 +1,12 @@
 package model;
 
-import java.io.*;
-import java.net.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -21,10 +26,12 @@ import dao.UsuarioDAO;
 import entities.Inscricao;
 import enums.CadastroEnum;
 import enums.LoginEnum;
+import view.InterfaceServidorView;
 
 public class ServidorModel {
 	private ServerSocket serverSocket;
 	private String tokenAdmin = "1234567";
+	private InterfaceServidorView telaServidor;
 
 	// Inicia o servidor
 	public void iniciarServidor(int porta) throws IOException {
@@ -149,6 +156,13 @@ public class ServidorModel {
 		case "cadastrarUsuarioCategoria":
 			processarCadastrarUsuarioCategoria(mensagemRecebida, saida, jsonController, listener);
 			break;
+		case "descadastrarUsuarioCategoria":
+			processarDescadastrarUsuarioCategoria(mensagemRecebida, saida, jsonController, listener);
+			break;
+		case "listarUsuarioAvisos":
+			processarListarUsuarioAvisos(mensagemRecebida, saida, jsonController, listener);
+			break;
+
 		default:
 			enviarErroOperacaoInvalida(operacao, saida, jsonController, listener);
 		}
@@ -181,7 +195,6 @@ public class ServidorModel {
 			if (statusLogin == LoginEnum.SUCESSO) {
 
 				try {
-					System.out.println(usuario);
 					String token = loginController.getRa(usuario.getRa());
 
 					Connection conn = BancoDados.conectar();
@@ -190,6 +203,8 @@ public class ServidorModel {
 
 					resposta.setStatus(200);
 					resposta.setToken(token);
+					
+					telaServidor.atualizarListaLogados();
 
 				} catch (SQLException e) {
 					System.out.println(e);
@@ -273,6 +288,8 @@ public class ServidorModel {
 
 			resposta.setStatus(200); // Logout bem-sucedido
 			resposta.setMsg("Logout realizado com sucesso.");
+			
+			telaServidor.atualizarListaLogados();
 		} catch (SQLException e) {
 			e.printStackTrace();
 			resposta.setStatus(401); // Erro interno do servidor
@@ -395,7 +412,6 @@ public class ServidorModel {
 	private void processarEditarUsuarios(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
 			ServidorListener listener) {
 
-		System.out.println("Mensagem recebida editar: " + mensagemRecebida);
 		UsuarioModel usuario = jsonController.changeJSONToUser(mensagemRecebida);
 		RespostaModel resposta = new RespostaModel();
 
@@ -703,6 +719,7 @@ public class ServidorModel {
 				// Conectar ao banco de dados
 				Connection conn = BancoDados.conectar();
 				CategoriaDAO categoriaDAO = new CategoriaDAO(conn);
+				InscricaoDAO inscricaoDAO = new InscricaoDAO(conn);
 
 				// Verifica se a categoria existe no banco de dados
 				CategoriaModel categoriaExistente = categoriaDAO.getCategoriaPorId(categoria.getId());
@@ -713,6 +730,7 @@ public class ServidorModel {
 				} else {
 					// Tenta remover a categoria do banco de dados
 					try {
+						inscricaoDAO.removerCategoriaIncricao(categoria.getId());
 						categoriaDAO.removerCategoria(categoria.getId());
 						resposta.setStatus(201);
 						resposta.setOperacao("excluirCategoria");
@@ -744,341 +762,491 @@ public class ServidorModel {
 		// Envia a resposta ao cliente
 		enviarResposta(resposta, saida, jsonController, listener);
 	}
-	
-	private void processarListarAvisos(String mensagemRecebida, PrintWriter saida, JSONController jsonController, ServidorListener listener) {
-	    RespostaModel resposta = new RespostaModel();
-	    resposta.setOperacao("listarAvisos");
-	    Connection conn = null;
-	    
-	    try {
-	        RespostaModel respRecebida = jsonController.changeResponseToJson(mensagemRecebida);
 
-	        if (respRecebida == null || respRecebida.getToken() == null) {
-	            resposta.setStatus(401);
-	            resposta.setMsg("Dados inválidos.");
-	            return;
-	        }
+	private void processarListarAvisos(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
+			ServidorListener listener) {
+		RespostaModel resposta = new RespostaModel();
+		resposta.setOperacao("listarAvisos");
+		Connection conn = null;
+		CategoriaModel categoria = null;
 
-	        conn = BancoDados.conectar();
-	        AvisoDAO avisoDAO = new AvisoDAO(conn);
-	        List<AvisoModel> avisos;
+		try {
+			RespostaModel respRecebida = jsonController.changeListarAvisosToJson(mensagemRecebida);
 
-	        if (respRecebida.getIdCategoria() == 0) {
-	            avisos = avisoDAO.listarAvisos();
-	        } else {
-	            CategoriaModel categoria = avisoDAO.getCategoriaPorId(respRecebida.getIdCategoria());
-	            if (categoria == null) {
-	                resposta.setStatus(401);
-	                resposta.setMsg("Categoria não encontrada.");
-	                return;
-	            }
-	            avisos = avisoDAO.listarAvisosPorCategoria(respRecebida.getIdCategoria());
-	        }
+			if (respRecebida == null || respRecebida.getToken() == null) {
+				resposta.setStatus(401);
+				resposta.setMsg("Dados invalidos.");
+				return;
+			}
 
-	        if (avisos.isEmpty()) {
-	            resposta.setStatus(401);
-	            resposta.setMsg("Nenhum aviso encontrado.");
-	        } else {
-	            resposta.setStatus(201);
-	            resposta.setAvisos(avisos);
-	        }
-	    } catch (SQLException e) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Erro ao acessar o banco de dados: " + e.getMessage());
-	    } catch (Exception e) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Erro inesperado: " + e.getMessage());
-	    } finally {
-	        try {
+			conn = BancoDados.conectar();
+			AvisoDAO avisoDAO = new AvisoDAO(conn);
+			List<AvisoModel> avisos;
+
+			if (respRecebida.getIdCategoria() == 0) {
+				avisos = avisoDAO.listarAvisos();
+			} else {
+				categoria = avisoDAO.getCategoriaPorId(respRecebida.getIdCategoria());
+				if (categoria == null) {
+					resposta.setStatus(401);
+					resposta.setMsg("Categoria nao encontrada.");
+					return;
+				}
+				avisos = avisoDAO.listarAvisosPorCategoria(respRecebida.getIdCategoria());
+			}
+
+			if (avisos.isEmpty() && categoria != null) {
+				resposta.setStatus(201);
+				resposta.setMsg("Nenhum aviso encontrado em " + categoria.getNome() + ".");
+			} else if (avisos.isEmpty() && categoria == null) {
+				resposta.setStatus(201);
+				resposta.setMsg("Nenhum aviso encontrado!");
+			} else {
+				resposta.setStatus(201);
+				resposta.setAvisos(avisos);
+			}
+		} catch (SQLException e) {
+			resposta.setStatus(401);
+			resposta.setMsg("Erro ao acessar o banco de dados: " + e.getMessage());
+		} catch (Exception e) {
+			resposta.setStatus(401);
+			resposta.setMsg("Erro inesperado: " + e.getMessage());
+		} finally {
+			try {
 				BancoDados.desconectar();
 			} catch (SQLException e) {
 				e.printStackTrace();
 			}
-	        enviarResposta(resposta, saida, jsonController, listener);
-	    }
+			enviarResposta(resposta, saida, jsonController, listener);
+		}
 	}
-	
-	private void processarSalvarAviso(String mensagemRecebida, PrintWriter saida, JSONController jsonController, ServidorListener listener) {
-	    RespostaModel resposta = new RespostaModel();
-	    resposta.setOperacao("salvarAviso"); // Define a operação
 
-	    // Converte a mensagem recebida em um objeto RespostaModel
-	    RespostaModel respRecebida = jsonController.changeResponseToJson(mensagemRecebida);
-	    System.out.println(respRecebida);
-	    
-	    // Verifica se a resposta recebida é válida
-	    if (respRecebida == null || respRecebida.getToken() == null || respRecebida.getAviso() == null) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Os campos recebidos não são válidos.");
-	        enviarResposta(resposta, saida, jsonController, listener);
-	        return;
-	    }
+	private void processarSalvarAviso(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
+			ServidorListener listener) {
+		RespostaModel resposta = new RespostaModel();
+		resposta.setOperacao("salvarAviso"); // Define a operação
 
-	    // Verifica se o token é de um administrador
-	    if (!isAdminToken(respRecebida.getToken())) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Acesso negado: você não tem permissão para salvar avisos.");
-	        enviarResposta(resposta, saida, jsonController, listener);
-	        return;
-	    }
+		// Converte a mensagem recebida em um objeto RespostaModel
+		RespostaModel respRecebida = jsonController.changeResponseToJson(mensagemRecebida);
 
-	    AvisoModel aviso = respRecebida.getAviso();
-	    
-	    // Valida os campos do aviso
-	    if (aviso.getTitulo() == null || aviso.getTitulo().isEmpty() || aviso.getDescricao() == null || aviso.getDescricao().isEmpty()) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Os campos recebidos não são válidos.");
-	        enviarResposta(resposta, saida, jsonController, listener);
-	        return;
-	    }
+		// Verifica se a resposta recebida é válida
+		if (respRecebida == null || respRecebida.getToken() == null || respRecebida.getAviso() == null) {
+			resposta.setStatus(401);
+			resposta.setMsg("Os campos recebidos não são válidos.");
+			enviarResposta(resposta, saida, jsonController, listener);
+			return;
+		}
 
-	    // Verifica se a categoria do aviso é válida
-	    if (aviso.getCategoria() == null || aviso.getCategoria().getId() <= 0) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Categoria não encontrada.");
-	        enviarResposta(resposta, saida, jsonController, listener);
-	        return;
-	    }
+		// Verifica se o token é de um administrador
+		if (!isAdminToken(respRecebida.getToken())) {
+			resposta.setStatus(401);
+			resposta.setMsg("Acesso negado: você não tem permissão para salvar avisos.");
+			enviarResposta(resposta, saida, jsonController, listener);
+			return;
+		}
 
-	    try {
-	        Connection conn = BancoDados.conectar();
-	        AvisoDAO avisoDAO = new AvisoDAO(conn);
+		AvisoModel aviso = respRecebida.getAviso();
 
-	        // Se o ID do aviso for 0, realiza um INSERT
-	        if (aviso.getId() == 0) {
-	            avisoDAO.adicionarAviso(aviso);
-	            resposta.setStatus(201);
-	            resposta.setMsg("Aviso salvo com sucesso.");
-	        } else {
-	            // Caso contrário, realiza um UPDATE
-	            AvisoModel avisoExistente = avisoDAO.getAvisoPorId(aviso.getId());
-	            if (avisoExistente == null) {
-	                resposta.setStatus(401);
-	                resposta.setMsg("Aviso não encontrado.");
-	            } else {
-	                avisoDAO.atualizarAviso(aviso);
-	                resposta.setStatus(201);
-	                resposta.setMsg("Aviso atualizado com sucesso.");
-	            }
-	        }
-	    } catch (SQLException e) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Erro ao acessar o banco de dados: " + e.getMessage());
-	    } catch (Exception e) {
-	        resposta.setStatus(401);
-	        resposta.setMsg("Erro inesperado: " + e.getMessage());
-	    } finally {
-	        try {
-	            BancoDados.desconectar(); // Certifique-se de desconectar após a operação
-	        } catch (SQLException e) {
-	            e.printStackTrace();
-	        }
-	    }
+		// Valida os campos do aviso
+		if (aviso.getTitulo() == null || aviso.getTitulo().isEmpty() || aviso.getDescricao() == null
+				|| aviso.getDescricao().isEmpty()) {
+			resposta.setStatus(401);
+			resposta.setMsg("Os campos recebidos não são válidos.");
+			enviarResposta(resposta, saida, jsonController, listener);
+			return;
+		}
 
-	    // Envia a resposta ao cliente
-	    enviarResposta(resposta, saida, jsonController, listener);
+		// Verifica se a categoria do aviso é válida
+		if (aviso.getCategoria() == null || aviso.getCategoria().getId() <= 0) {
+			resposta.setStatus(401);
+			resposta.setMsg("Categoria não encontrada.");
+			enviarResposta(resposta, saida, jsonController, listener);
+			return;
+		}
+
+		try {
+			Connection conn = BancoDados.conectar();
+			AvisoDAO avisoDAO = new AvisoDAO(conn);
+
+			// Se o ID do aviso for 0, realiza um INSERT
+			if (aviso.getId() == 0) {
+				avisoDAO.adicionarAviso(aviso);
+				resposta.setStatus(201);
+				resposta.setMsg("Aviso salvo com sucesso.");
+			} else {
+				// Caso contrário, realiza um UPDATE
+				AvisoModel avisoExistente = avisoDAO.getAvisoPorId(aviso.getId());
+				if (avisoExistente == null) {
+					resposta.setStatus(401);
+					resposta.setMsg("Aviso não encontrado.");
+				} else {
+					avisoDAO.atualizarAviso(aviso);
+					resposta.setStatus(201);
+					resposta.setMsg("Aviso atualizado com sucesso.");
+				}
+			}
+		} catch (SQLException e) {
+			resposta.setStatus(401);
+			resposta.setMsg("Erro ao acessar o banco de dados: " + e.getMessage());
+		} catch (Exception e) {
+			resposta.setStatus(401);
+			resposta.setMsg("Erro inesperado: " + e.getMessage());
+		} finally {
+			try {
+				BancoDados.desconectar();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+
+		// Envia a resposta ao cliente
+		enviarResposta(resposta, saida, jsonController, listener);
 	}
 
 	private void processarLocalizarAviso(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
-	        ServidorListener listener) throws IOException {
-	    // Converte a mensagem recebida em um objeto RespostaModel
-	    RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
-	    
-	    // Cria um novo objeto RespostaModel para a resposta
-	    RespostaModel respostaEnvio = new RespostaModel();
-	    respostaEnvio.setOperacao("localizarAviso"); // Define a operação
+			ServidorListener listener) throws IOException {
+		// Converte a mensagem recebida em um objeto RespostaModel
+		RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
 
-	    // Verifica se a resposta recebida é válida
-	    if (resposta == null || resposta.getToken() == null || resposta.getIdCategoria() <= 0) {
-	        respostaEnvio.setStatus(401); // Status de erro
-	        respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
-	    } else {
-	        // Conecta ao banco de dados
-	        try (Connection conn = BancoDados.conectar()) {
-	            AvisoDAO avisoDAO = new AvisoDAO(conn);
-	            AvisoModel aviso = avisoDAO.getAvisoPorId(resposta.getIdCategoria()); // Busca o aviso pelo ID
+		// Cria um novo objeto RespostaModel para a resposta
+		RespostaModel respostaEnvio = new RespostaModel();
+		respostaEnvio.setOperacao("localizarAviso"); // Define a operação
 
-	            if (aviso != null) {
-	                // Se o aviso for encontrado, define os dados na resposta
-	                respostaEnvio.setStatus(201); // Status de sucesso
-	                respostaEnvio.setAviso(aviso); // Adiciona o aviso à resposta
-	            } else {
-	                // Se o aviso não for encontrado
-	                respostaEnvio.setStatus(401); // Status de erro
-	                respostaEnvio.setMsg("Aviso não encontrado."); // Mensagem de erro
-	            }
-	        } catch (SQLException e) {
-	            respostaEnvio.setStatus(401); // Status de erro
-	            respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
-	        }
-	    }
+		// Verifica se a resposta recebida é válida
+		if (resposta == null || resposta.getToken() == null || resposta.getIdCategoria() <= 0) {
+			respostaEnvio.setStatus(401); // Status de erro
+			respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
+		} else {
+			// Conecta ao banco de dados
+			try (Connection conn = BancoDados.conectar()) {
+				AvisoDAO avisoDAO = new AvisoDAO(conn);
+				AvisoModel aviso = avisoDAO.getAvisoPorId(resposta.getIdCategoria()); // Busca o aviso pelo ID
 
-	    // Envia a resposta ao cliente
-	    enviarResposta(respostaEnvio, saida, jsonController, listener);
-	}
-	
-	private void processarExcluirAviso(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
-	        ServidorListener listener) throws IOException {
-	    // Converte a mensagem recebida em um objeto RespostaModel
-	    RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
-	    
-	    // Cria um novo objeto RespostaModel para a resposta
-	    RespostaModel respostaEnvio = new RespostaModel();
-	    respostaEnvio.setOperacao("excluirAviso"); // Define a operação
-
-	    // Verifica se a resposta recebida é válida
-	    if (resposta == null || resposta.getToken() == null || resposta.getIdCategoria() <= 0) {
-	        respostaEnvio.setStatus(401); // Status de erro
-	        respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
-	    } else {
-	        // Conecta ao banco de dados
-	        try (Connection conn = BancoDados.conectar()) {
-	            AvisoDAO avisoDAO = new AvisoDAO(conn);
-	            AvisoModel aviso = avisoDAO.getAvisoPorId(resposta.getIdCategoria()); // Busca o aviso pelo ID
-
-	            if (aviso != null) {
-	                // Se o aviso for encontrado, tenta removê-lo
-	                avisoDAO.excluirAviso(aviso.getId());
-	                respostaEnvio.setStatus(201); // Status de sucesso
-	                respostaEnvio.setMsg("Exclusão realizada com sucesso."); // Mensagem de sucesso
-	            } else {
-	                // Se o aviso não for encontrado
-	                respostaEnvio.setStatus(401); // Status de erro
-	                respostaEnvio.setMsg("Aviso não encontrado."); // Mensagem de erro
-	            }
-	        } catch (SQLException e) {
-	            respostaEnvio.setStatus(401); // Status de erro
-	            respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
-	        } finally {
+				if (aviso != null) {
+					// Se o aviso for encontrado, define os dados na resposta
+					respostaEnvio.setStatus(201); // Status de sucesso
+					respostaEnvio.setAviso(aviso); // Adiciona o aviso à resposta
+				} else {
+					// Se o aviso não for encontrado
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Aviso não encontrado."); // Mensagem de erro
+				}
+			} catch (SQLException e) {
+				respostaEnvio.setStatus(401); // Status de erro
+				respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
+			} finally {
 				try {
 					BancoDados.desconectar();
 				} catch (SQLException e) {
 					e.printStackTrace();
 				}
 			}
-	    }
+		}
 
-	    // Envia a resposta ao cliente
-	    enviarResposta(respostaEnvio, saida, jsonController, listener);
+		// Envia a resposta ao cliente
+		enviarResposta(respostaEnvio, saida, jsonController, listener);
 	}
-	
-	private void processarListarUsuarioCategorias(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
+
+	private void processarExcluirAviso(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
+			ServidorListener listener) throws IOException {
+		// Converte a mensagem recebida em um objeto RespostaModel
+		RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
+
+		// Cria um novo objeto RespostaModel para a resposta
+		RespostaModel respostaEnvio = new RespostaModel();
+		respostaEnvio.setOperacao("excluirAviso"); // Define a operação
+
+		// Verifica se a resposta recebida é válida
+		if (resposta == null || resposta.getToken() == null || resposta.getIdCategoria() <= 0) {
+			respostaEnvio.setStatus(401); // Status de erro
+			respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
+		} else {
+			// Conecta ao banco de dados
+			try (Connection conn = BancoDados.conectar()) {
+				AvisoDAO avisoDAO = new AvisoDAO(conn);
+				AvisoModel aviso = avisoDAO.getAvisoPorId(resposta.getIdCategoria()); // Busca o aviso pelo ID
+
+				if (aviso != null) {
+					// Se o aviso for encontrado, tenta removê-lo
+					avisoDAO.excluirAviso(aviso.getId());
+					respostaEnvio.setStatus(201); // Status de sucesso
+					respostaEnvio.setMsg("Exclusão realizada com sucesso."); // Mensagem de sucesso
+				} else {
+					// Se o aviso não for encontrado
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Aviso não encontrado."); // Mensagem de erro
+				}
+			} catch (SQLException e) {
+				respostaEnvio.setStatus(401); // Status de erro
+				respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
+			} finally {
+				try {
+					BancoDados.desconectar();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		// Envia a resposta ao cliente
+		enviarResposta(respostaEnvio, saida, jsonController, listener);
+	}
+
+	private void processarListarUsuarioCategorias(String mensagemRecebida, PrintWriter saida,
+			JSONController jsonController, ServidorListener listener) throws IOException {
+		// Converte a mensagem recebida em um objeto RespostaModel
+		RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
+
+		// Cria um novo objeto RespostaModel para a resposta
+		RespostaModel respostaEnvio = new RespostaModel();
+		respostaEnvio.setOperacao("listarUsuarioCategorias"); // Define a operação
+
+		// Verifica se a resposta recebida é válida
+		if (resposta == null || resposta.getToken() == null || resposta.getRa() == null || resposta.getRa().isEmpty()) {
+			respostaEnvio.setStatus(401); // Status de erro
+			respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
+		} else {
+			// Conecta ao banco de dados
+			try (Connection conn = BancoDados.conectar()) {
+				InscricaoDAO inscricaoDAO = new InscricaoDAO(conn);
+				List<Integer> categorias = inscricaoDAO.buscarCategoriasPorRA(resposta.getRa()); // Busca as categorias
+																									// pelo RA
+
+				if (categorias == null) {
+					// Se o usuário não for encontrado
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Usuário não encontrado."); // Mensagem de erro
+					respostaEnvio.setIdsCategorias(new ArrayList<>()); // Retorna categorias como um array vazio
+				} else if (categorias.isEmpty()) {
+					// Se o usuário não tiver categorias cadastradas
+					respostaEnvio.setStatus(201); // Status de sucesso
+					respostaEnvio.setIdsCategorias(new ArrayList<>()); // Retorna categorias como um array vazio
+				} else {
+					// Se as categorias forem encontradas
+					respostaEnvio.setStatus(201); // Status de sucesso
+					respostaEnvio.setIdsCategorias(categorias); // Define as categorias na resposta
+				}
+			} catch (SQLException e) {
+				respostaEnvio.setStatus(401); // Status de erro
+				respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
+			} finally {
+				try {
+					BancoDados.desconectar();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		// Envia a resposta ao cliente
+		enviarResposta(respostaEnvio, saida, jsonController, listener);
+	}
+
+	private void processarCadastrarUsuarioCategoria(String mensagemRecebida, PrintWriter saida,
+			JSONController jsonController, ServidorListener listener) throws IOException {
+
+		// Converte a mensagem recebida em um objeto RespostaModel
+		RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
+
+		// Cria um novo objeto RespostaModel para a resposta
+		RespostaModel respostaEnvio = new RespostaModel();
+		respostaEnvio.setOperacao("cadastrarUsuarioCategoria"); // Define a operação
+
+		// Verifica se a resposta recebida é válida
+		if (resposta == null || resposta.getToken() == null || resposta.getRa() == null
+				|| resposta.getIdCategoria() <= 0) {
+			respostaEnvio.setStatus(401); // Status de erro
+			respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
+		} else {
+			// Conecta ao banco de dados
+			try (Connection conn = BancoDados.conectar()) {
+				UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
+
+				// Autentica o usuário
+				UsuarioModel usuario = usuarioDAO.getUsuarioPorRa(resposta.getToken());
+				if (usuario == null) {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Usuário não encontrado."); // Mensagem de erro
+					return;
+				}
+
+				CategoriaDAO categoriaDAO = new CategoriaDAO(conn);
+				// Verifica se a categoria existe
+				CategoriaModel categoria = categoriaDAO.getCategoriaPorId(resposta.getIdCategoria());
+
+				if (categoria == null) {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Categoria não encontrada."); // Mensagem de erro
+					return;
+				}
+
+				// Verifica se o usuário é um administrador ou se está cadastrando a si mesmo
+				if (!isAdminToken(usuario.getToken()) && !usuario.getRa().equals(resposta.getRa())) {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Você não tem permissão para cadastrar outro usuário."); // Mensagem de erro
+					return;
+				}
+
+				Inscricao inscricao = new Inscricao();
+				inscricao.setRaUsuario(usuario.getRa());
+				inscricao.setIdCategoria(categoria.getId());
+
+				InscricaoDAO inscricaoDAO = new InscricaoDAO(conn);
+
+				// Cadastra o usuário na categoria
+				int sucesso = inscricaoDAO.cadastrar(inscricao);
+				if (sucesso > 0) {
+					respostaEnvio.setStatus(201); // Status de sucesso
+					respostaEnvio.setMsg("Cadastro em categoria realizado com sucesso."); // Mensagem de sucesso
+				} else {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Erro ao cadastrar usuário na categoria."); // Mensagem de erro
+				}
+			} catch (SQLException e) {
+				respostaEnvio.setStatus(401); // Status de erro
+				respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
+			} finally {
+				try {
+					BancoDados.desconectar();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		// Envia a resposta ao cliente
+		enviarResposta(respostaEnvio, saida, jsonController, listener);
+	}
+
+	private void processarDescadastrarUsuarioCategoria(String mensagemRecebida, PrintWriter saida,
+			JSONController jsonController, ServidorListener listener) throws IOException {
+
+		// Converte a mensagem recebida em um objeto RespostaModel
+		RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
+
+		// Cria um novo objeto RespostaModel para a resposta
+		RespostaModel respostaEnvio = new RespostaModel();
+		respostaEnvio.setOperacao("descadastrarUsuarioCategoria"); // Define a operação
+
+		// Verifica se a resposta recebida é válida
+		if (resposta == null || resposta.getToken() == null || resposta.getRa() == null
+				|| resposta.getIdCategoria() <= 0) {
+			respostaEnvio.setStatus(401); // Status de erro
+			respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
+		} else {
+			// Conecta ao banco de dados
+			try (Connection conn = BancoDados.conectar()) {
+				UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
+
+				// Autentica o usuário
+				UsuarioModel usuario = usuarioDAO.getUsuarioPorRa(resposta.getToken());
+				if (usuario == null) {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Usuário não encontrado."); // Mensagem de erro
+					return;
+				}
+
+				CategoriaDAO categoriaDAO = new CategoriaDAO(conn);
+				// Verifica se a categoria existe
+				CategoriaModel categoria = categoriaDAO.getCategoriaPorId(resposta.getIdCategoria());
+
+				if (categoria == null) {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Categoria não encontrada."); // Mensagem de erro
+					return;
+				}
+
+				// Verifica se o usuário é um administrador ou se está descadastrando a si mesmo
+				if (!isAdminToken(usuario.getToken()) && !usuario.getRa().equals(resposta.getRa())) {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Você não tem permissão para descadastrar outro usuário."); // Mensagem de erro
+					return;
+				}
+
+				InscricaoDAO inscricaoDAO = new InscricaoDAO(conn);
+
+				// Descadastra o usuário da categoria
+				int sucesso = inscricaoDAO.descadastrar(resposta.getRa(), categoria.getId());
+				if (sucesso > 0) {
+					respostaEnvio.setStatus(201); // Status de sucesso
+					respostaEnvio.setMsg("Descadastro realizado com sucesso."); // Mensagem de sucesso
+				} else {
+					respostaEnvio.setStatus(401); // Status de erro
+					respostaEnvio.setMsg("Erro ao descadastrar usuário da categoria."); // Mensagem de erro
+				}
+			} catch (SQLException e) {
+				respostaEnvio.setStatus(401); // Status de erro
+				respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
+			} finally {
+				try {
+					BancoDados.desconectar();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		// Envia a resposta ao cliente
+		enviarResposta(respostaEnvio, saida, jsonController, listener);
+	}
+
+	private void processarListarUsuarioAvisos(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
 	        ServidorListener listener) throws IOException {
 	    // Converte a mensagem recebida em um objeto RespostaModel
 	    RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
 
 	    // Cria um novo objeto RespostaModel para a resposta
 	    RespostaModel respostaEnvio = new RespostaModel();
-	    respostaEnvio.setOperacao("listarUsuarioCategorias"); // Define a operação
+	    respostaEnvio.setOperacao("listarUsuarioAvisos"); // Define a operação
 
 	    // Verifica se a resposta recebida é válida
-	    if (resposta == null || resposta.getToken() == null || resposta.getRa() == null || resposta.getRa().isEmpty()) {
+	    if (resposta == null || resposta.getToken() == null || resposta.getRa() == null) {
 	        respostaEnvio.setStatus(401); // Status de erro
 	        respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
-	    } else {
-	        // Conecta ao banco de dados
-	        try (Connection conn = BancoDados.conectar()) {
-	            InscricaoDAO inscricaoDAO = new InscricaoDAO(conn);
-	            List<Integer> categorias = inscricaoDAO.buscarCategoriasPorRA(resposta.getRa()); // Busca as categorias pelo RA
+	        enviarResposta(respostaEnvio, saida, jsonController, listener);
+	        return;
+	    }
 
-	            if (categorias == null) {
-	                // Se o usuário não for encontrado
-	                respostaEnvio.setStatus(401); // Status de erro
-	                respostaEnvio.setMsg("Usuário não encontrado."); // Mensagem de erro
-	                respostaEnvio.setIdsCategorias(new ArrayList<>()); // Retorna categorias como um array vazio
-	            } else if (categorias.isEmpty()) {
-	                // Se o usuário não tiver categorias cadastradas
-	                respostaEnvio.setStatus(201); // Status de sucesso
-	                respostaEnvio.setIdsCategorias(new ArrayList<>()); // Retorna categorias como um array vazio
-	            } else {
-	                // Se as categorias forem encontradas
-	                respostaEnvio.setStatus(201); // Status de sucesso
-	                respostaEnvio.setIdsCategorias(categorias); // Define as categorias na resposta
-	            }
-	        } catch (SQLException e) {
+	    // Conecta ao banco de dados
+	    try (Connection conn = BancoDados.conectar()) {
+	        UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
+
+	        // Autentica o usuário
+	        UsuarioModel usuario = usuarioDAO.getUsuarioPorRa(resposta.getRa());
+	        if (usuario == null) {
 	            respostaEnvio.setStatus(401); // Status de erro
-	            respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
-	        } finally {
-	            try {
-	                BancoDados.desconectar();
-	            } catch (SQLException e) {
-	                e.printStackTrace();
-	            }
+	            respostaEnvio.setMsg("Usuário não encontrado."); // Mensagem de erro
+	            enviarResposta(respostaEnvio, saida, jsonController, listener);
+	            return;
 	        }
-	    }
 
-	    // Envia a resposta ao cliente
-	    enviarResposta(respostaEnvio, saida, jsonController, listener);
-	}
-	
-	private void processarCadastrarUsuarioCategoria(String mensagemRecebida, PrintWriter saida, JSONController jsonController,
-	        ServidorListener listener) throws IOException {
-	    
-	    // Converte a mensagem recebida em um objeto RespostaModel
-	    RespostaModel resposta = jsonController.changeResponseToJson(mensagemRecebida);
-	    
-	    // Cria um novo objeto RespostaModel para a resposta
-	    RespostaModel respostaEnvio = new RespostaModel();
-	    respostaEnvio.setOperacao("cadastrarUsuarioCategoria"); // Define a operação
+	        // Verifica se o usuário é admin ou se o token é igual ao RA
+	        if (!isAdminToken(resposta.getToken()) && !resposta.getToken().equals(resposta.getRa())) {
+	            respostaEnvio.setStatus(401); // Status de acesso negado
+	            respostaEnvio.setMsg("Acesso negado: você não tem permissão para listar os avisos deste usuário."); // Mensagem de erro
+	            enviarResposta(respostaEnvio, saida, jsonController, listener);
+	            return;
+	        }
 
-	    // Verifica se a resposta recebida é válida
-	    if (resposta == null || resposta.getToken() == null || resposta.getRa() == null || resposta.getCategoria() == null) {
+	        // Busca os avisos do usuário
+	        AvisoDAO avisoDAO = new AvisoDAO(conn);
+	        List<AvisoModel> avisos = avisoDAO.getAvisosPorUsuario(usuario.getRa());
+
+	        if (avisos.isEmpty()) {
+	            respostaEnvio.setStatus(201); // Status de no content
+	            respostaEnvio.setMsg("Nenhum aviso encontrado."); // Mensagem de aviso
+	        } else {
+	            respostaEnvio.setStatus(201); // Status de sucesso
+	            respostaEnvio.setAvisos(avisos); // Adiciona a lista de avisos diretamente
+	        }
+	    } catch (SQLException e) {
 	        respostaEnvio.setStatus(401); // Status de erro
-	        respostaEnvio.setMsg("Dados inválidos."); // Mensagem de erro
-	    } else {
-	        // Conecta ao banco de dados
-	        try (Connection conn = BancoDados.conectar()) {
-	            UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
-	            
-	            // Autentica o usuário
-	            UsuarioModel usuario = usuarioDAO.getUsuarioPorRa(resposta.getToken());
-	            if (usuario == null) {
-	                respostaEnvio.setStatus(401); // Status de erro
-	                respostaEnvio.setMsg("Usuário não encontrado."); // Mensagem de erro
-	                return;
-	            }
-	            
-	            CategoriaDAO categoriaDAO = new CategoriaDAO(conn);
-	            // Verifica se a categoria existe
-	            CategoriaModel categoria = categoriaDAO.getCategoriaPorId(resposta.getCategoria().getId());
-	            
-	            if (categoria == null) {
-	                respostaEnvio.setStatus(401); // Status de erro
-	                respostaEnvio.setMsg("Categoria não encontrada."); // Mensagem de erro
-	                return;
-	            }
-
-	            // Verifica se o usuário é um administrador ou se está cadastrando a si mesmo
-	            if (!isAdminToken(usuario.getToken()) && !usuario.getRa().equals(resposta.getRa())) {
-	                respostaEnvio.setStatus(403); // Status de erro
-	                respostaEnvio.setMsg("Você não tem permissão para cadastrar outro usuário."); // Mensagem de erro
-	                return;
-	            }
-	            
-	            Inscricao inscricao = new Inscricao();
-	            inscricao.setRaUsuario(usuario.getToken());
-	            inscricao.setIdCategoria(categoria.getId());
-	            
-	            InscricaoDAO inscricaoDAO = new InscricaoDAO(conn);
-
-	            // Cadastra o usuário na categoria
-	            int sucesso = inscricaoDAO.cadastrar(inscricao);
-	            if (sucesso > 0) {
-	                respostaEnvio.setStatus(201); // Status de sucesso
-	                respostaEnvio.setMsg("Cadastro em categoria realizado com sucesso."); // Mensagem de sucesso
-	            } else {
-	                respostaEnvio.setStatus(500); // Status de erro
-	                respostaEnvio.setMsg("Erro ao cadastrar usuário na categoria."); // Mensagem de erro
-	            }
+	        respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
+	    } finally {
+	        try {
+	            BancoDados.desconectar();
 	        } catch (SQLException e) {
-	            respostaEnvio.setStatus(500); // Status de erro
-	            respostaEnvio.setMsg("Erro ao acessar o banco de dados: " + e.getMessage()); // Mensagem de erro
-	        } finally {
-	            try {
-	                BancoDados.desconectar();
-	            } catch (SQLException e) {
-	                e.printStackTrace();
-	            }
+	            e.printStackTrace();
 	        }
 	    }
 
@@ -1091,7 +1259,7 @@ public class ServidorModel {
 			ServidorListener listener) {
 		RespostaModel resposta = new RespostaModel();
 		resposta.setStatus(401);
-		resposta.setMsg("ERRO: " + operacao);
+		resposta.setMsg("ERRO: " + operacao + " não é uma operação válida!");
 		enviarResposta(resposta, saida, jsonController, listener);
 	}
 
@@ -1133,6 +1301,14 @@ public class ServidorModel {
 		default:
 			return "Erro desconhecido.";
 		}
+	}
+
+	public InterfaceServidorView getTelaServidor() {
+		return telaServidor;
+	}
+
+	public void setTelaServidor(InterfaceServidorView telaServidor) {
+		this.telaServidor = telaServidor;
 	}
 
 	// Interface para eventos do servidor

@@ -5,10 +5,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.swing.JOptionPane;
 
@@ -16,14 +17,14 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
 import controller.JSONController;
-import dao.BancoDados;
-import dao.CategoriaDAO;
 import view.AdminMainView;
+import view.AvisosInscritosView;
 import view.AvisosView;
 import view.CadastroView;
 import view.GerenciadorAvisosView;
 import view.GerenciadorCategoriasView;
 import view.GerenciadorUsuariosView;
+import view.InscricaoCategoriasView;
 import view.LoginView;
 import view.MainView;
 import view.UsuarioInfoView;
@@ -43,9 +44,11 @@ public class ClienteModel {
 	private AdminMainView telaAdmin;
 	private GerenciadorUsuariosView telaGerenciadorUsuario;
 	private GerenciadorCategoriasView gerenciadorCategoria;
-	private String tokenAdmin = "1234567";
+	private String tokenAdmin = "2099284";
 	private UsuarioInfoView telaUsuarioInfo;
 	private GerenciadorAvisosView gerenciadorAviso;
+	private InscricaoCategoriasView inscricaoCategoriasView;
+	private List<CategoriaModel> categoriasCadastradas = new ArrayList<CategoriaModel>();
 
 	// Método para conectar ao servidor
 	public synchronized void conectar(String ip, int porta) throws IOException {
@@ -158,6 +161,15 @@ public class ClienteModel {
 		case "listarUsuarioCategorias":
 			tratarListarUsuarioCategorias(status, mensagem, categorias);
 			break;
+		case "cadastrarUsuarioCategoria":
+			tratarCadastrarUsuarioCategoria(status, mensagem);
+			break;
+		case "descadastrarUsuarioCategoria":
+			tratarDescadastrarUsuarioCategoria(status, mensagem);
+			break;
+		case "listarUsuarioAvisos":
+			tratarListarUsuarioAvisos(status, mensagem, avisos);
+			break;
 		default:
 			JOptionPane.showMessageDialog(null, mensagem + ": " + operacao);
 			System.out.println("Operação inválida ou não reconhecida.");
@@ -186,6 +198,17 @@ public class ClienteModel {
 				this.telaAdmin = telaAdimin.getEssaTela();
 			} else {
 				abrirTelaPrincipal(token);
+				UsuarioModel usuario = new UsuarioModel();
+		        usuario.setOperacao("listarUsuarioAvisos");
+		        usuario.setToken(token); // Usando o token do cliente
+		        usuario.setRa(token); // Usando o token do cliente
+
+		        // Converte o usuário para JSON
+		        JSONController jsonController = new JSONController();
+		        JSONObject res = jsonController.changeToJSON(usuario);
+
+		        // Envia a requisição ao servidor
+		        enviarMensagem(res);
 			}
 		} else {
 			tratarErro(loginView, mensagem, "Erro de Login");
@@ -218,7 +241,6 @@ public class ClienteModel {
 	// Lida com logout
 	private void tratarLogout(int status, String mensagem, String token) {
 		if (status == 200) {
-			System.out.println(avisosView);
 
 			// Dispose das views e as define como null se não forem nulas
 			if (avisosView != null) {
@@ -372,19 +394,30 @@ public class ClienteModel {
 
 		if (telaAdmin != null) {
 
-			if (gerenciadorCategoria == null) {
-
-				String token = telaAdmin.getToken();
-				GerenciadorCategoriasView gerenciadorCategoria = new GerenciadorCategoriasView(token, this, categorias);
-				this.gerenciadorCategoria = gerenciadorCategoria;
-				gerenciadorCategoria.setTelaAdmin(telaAdmin);
-				gerenciadorCategoria.setVisible(true);
+			if (status == 201) {
+				
+				this.categoriasCadastradas = categorias;
+				
+				if (gerenciadorCategoria == null) {
+					
+					String token = telaAdmin.getToken();
+					telaAdmin.setVisible(false);
+					GerenciadorCategoriasView gerenciadorCategoria = new GerenciadorCategoriasView(token, this, categorias);
+					this.gerenciadorCategoria = gerenciadorCategoria;
+					gerenciadorCategoria.setTelaAdmin(telaAdmin);
+					gerenciadorCategoria.setVisible(true);
+				} else {
+					gerenciadorCategoria.atualizarTabelaCategorias(categorias);
+				}
 			} else {
-				gerenciadorCategoria.atualizarTabelaCategorias(categorias);
+				telaAdmin.setVisible(true);
 			}
 		} else if (avisosView != null) {
-			System.out.println("listar categorias server: " + categorias);
-			avisosView.atualizarCategorias(categorias);
+
+			if (status == 201) {
+				
+				avisosView.atualizarCategorias(categorias);
+			}
 		}
 	}
 
@@ -443,59 +476,42 @@ public class ClienteModel {
 	}
 
 	private void tratarListarAvisos(int status, String mensagem, List<AvisoModel> avisos) {
-		if (status == 201) {
+	    if (status == 201 || status == 200) {
+	        if (telaAdmin != null) {
 
-			if (telaAdmin != null) {
+	            if (gerenciadorAviso != null) {
+	                gerenciadorAviso.atualizarTabelaMensagens(avisos);
+	            } else {
+	                // Extrai as categorias dos avisos passados como parâmetro
+	            	Set<Integer> categoriaIds = new HashSet<>();
+	            	List<CategoriaModel> categorias = new ArrayList<>();
 
-				// Se a tela de gerenciamento de avisos já estiver aberta, atualiza a lista de
-				// avisos
-				if (gerenciadorAviso != null) {
-					gerenciadorAviso.atualizarTabelaMensagens(avisos);
-				} else {
-					// Caso contrário, cria uma nova tela de gerenciamento de avisos
-					Connection conn = null;
-					try {
-						conn = BancoDados.conectar();
-						CategoriaDAO categoriaDAO = new CategoriaDAO(conn);
-						List<CategoriaModel> categorias = categoriaDAO.listarCategorias(); // Obtém a lista de
-																							// categorias
-
-						// Cria a nova tela de gerenciamento de avisos com a lista de categorias
-						GerenciadorAvisosView gerenciadorAvisosView = new GerenciadorAvisosView(this, token,
-								categorias);
-						setGerenciadorAviso(gerenciadorAvisosView);
-						gerenciadorAvisosView.setTelaAdmin(telaAdmin);
-						gerenciadorAvisosView.atualizarTabelaMensagens(avisos); // Atualiza a tabela com os avisos
-																				// recebidos
-						gerenciadorAvisosView.setVisible(true); // Exibe a nova tela
-					} catch (SQLException | IOException e) {
-						e.printStackTrace();
-						JOptionPane.showMessageDialog(null, "Erro ao conectar ao banco de dados: " + e.getMessage(),
-								"Erro", JOptionPane.ERROR_MESSAGE);
-					} finally {
-						// Desconecta do banco de dados se a conexão foi estabelecida
-						if (conn != null) {
-							try {
-								BancoDados.desconectar();
-							} catch (SQLException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-				}
-			} else if (telaPrincipal != null) {
-				
-				if (avisosView != null) {
-					
-					avisosView.atualizarAvisos(avisos);
-				}
-
-			}
-		} else {
-			// Exibe uma mensagem de erro se a operação não foi bem-sucedida
-			JOptionPane.showMessageDialog(null, mensagem, "Erro", JOptionPane.ERROR_MESSAGE);
-		}
+	            	for (CategoriaModel categoria : categoriasCadastradas) {
+	            	    
+	          
+	            	    if (categoria != null && categoriaIds.add(categoria.getId())) {
+	            	        categorias.add(categoria);
+	            	    }
+	            	}
+	                
+	                // Configura a nova tela de gerenciamento de avisos com a lista de categorias extraídas
+	                telaAdmin.setVisible(false);
+	                GerenciadorAvisosView gerenciadorAvisosView = new GerenciadorAvisosView(this, token, categorias);
+	                setGerenciadorAviso(gerenciadorAvisosView);
+	                gerenciadorAvisosView.setTelaAdmin(telaAdmin);
+	                gerenciadorAvisosView.atualizarTabelaMensagens(avisos);
+	                gerenciadorAvisosView.setVisible(true);
+	            }
+	        } else if (telaPrincipal != null) {
+	            if (avisosView != null) {
+	                avisosView.atualizarAvisos(avisos);
+	            }
+	        }
+	    } else {
+	        JOptionPane.showMessageDialog(null, mensagem, "Erro", JOptionPane.ERROR_MESSAGE);
+	    }
 	}
+
 
 	private void tratarSalvarAviso(int status, String mensagem) {
 		if (status == 201) {
@@ -530,15 +546,86 @@ public class ClienteModel {
 	}
 
 	private void tratarListarUsuarioCategorias(int status, String mensagem, List<CategoriaModel> categorias) {
-		System.out.println("Categorias criação avisos view: " + categorias);
 		if (telaPrincipal != null) {
+			if (status == 201) {
 
-			AvisosView avisoView = new AvisosView(this, telaPrincipal.getToken(), categorias);
-			this.avisosView = avisoView;
-			avisoView.setTelaPrincipal(telaPrincipal);
-			avisoView.setVisible(true);
+				if (avisosView != null) {
+					avisosView.dispose();
+				}
+
+				telaPrincipal.ocultarTela();
+				AvisosView avisoView = new AvisosView(this, telaPrincipal.getToken(), categorias);
+				this.avisosView = avisoView;
+				avisoView.setTelaPrincipal(telaPrincipal);
+				avisoView.setVisible(true);
+
+			} else {
+				JOptionPane.showMessageDialog(null, mensagem, "Erro", JOptionPane.ERROR_MESSAGE);
+			}
+		}
+	}
+
+	private void tratarCadastrarUsuarioCategoria(int status, String mensagem) {
+		if (status == 201) {
+
+			if (inscricaoCategoriasView != null) {
+				inscricaoCategoriasView.dispose();
+				setInscricaoCategoriasView(null);
+				avisosView.pedirCategorias(null);
+				JOptionPane.showMessageDialog(null, mensagem, "sucesso", JOptionPane.INFORMATION_MESSAGE);
+
+				UsuarioModel usuario = new UsuarioModel();
+				usuario.setOperacao("listarUsuarioCategorias");
+				usuario.setToken(token); // Usando o token do cliente
+				usuario.setRa(token);
+
+				// Converte o usuário para JSON
+				JSONController jsonController = new JSONController();
+				JSONObject res = jsonController.changeToJSON(usuario);
+
+				// Envia a requisição ao servidor
+				enviarMensagem(res);
+			}
+		} else {
+			JOptionPane.showMessageDialog(null, mensagem, "Erro", JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private void tratarDescadastrarUsuarioCategoria(int status, String mensagem) {
+
+		if (status == 201) {
+
+			if (avisosView != null) {
+				avisosView.pedirCategorias(null);
+				JOptionPane.showMessageDialog(null, mensagem, "sucesso", JOptionPane.INFORMATION_MESSAGE);
+
+				UsuarioModel usuario = new UsuarioModel();
+				usuario.setOperacao("listarUsuarioCategorias");
+				usuario.setToken(token); // Usando o token do cliente
+				usuario.setRa(token);
+
+				// Converte o usuário para JSON
+				JSONController jsonController = new JSONController();
+				JSONObject res = jsonController.changeToJSON(usuario);
+
+				// Envia a requisição ao servidor
+				enviarMensagem(res);
+			}
+		} else {
+			JOptionPane.showMessageDialog(null, mensagem, "Erro", JOptionPane.ERROR_MESSAGE);
 		}
 
+	}
+	
+	private void tratarListarUsuarioAvisos(int status, String mensagem, List<AvisoModel> avisos) {
+		
+		if (status == 201) {
+			
+			AvisosInscritosView avisosInscritosView = new AvisosInscritosView(this, avisos);
+			avisosInscritosView.setVisible(true);
+		} else {
+			JOptionPane.showMessageDialog(null, "Erro ao listar Avisos que o usuario está cadastrado: " + mensagem);
+		}
 	}
 
 	// Lida com erros exibindo mensagens apropriadas
@@ -646,6 +733,14 @@ public class ClienteModel {
 
 	public void setGerenciadorAviso(GerenciadorAvisosView gerenciadorAviso) {
 		this.gerenciadorAviso = gerenciadorAviso;
+	}
+
+	public void setTelaAdmin(AdminMainView telaAdmin) {
+		this.telaAdmin = telaAdmin;
+	}
+
+	public void setInscricaoCategoriasView(InscricaoCategoriasView inscricaoCategoriasView) {
+		this.inscricaoCategoriasView = inscricaoCategoriasView;
 	}
 
 }

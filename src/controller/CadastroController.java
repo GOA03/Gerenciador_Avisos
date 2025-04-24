@@ -18,8 +18,7 @@ public class CadastroController {
 		Boolean nomeValido = validarNome(usuario.getNome());
 		RaEnum raValido = validarRa(usuario.getRa());
 		Boolean senhaValida = validarSenha(usuario.getSenha());
-		System.out.println("USUARIO: " + nomeValido + " RA: " + raValido + " Senha: " + senhaValida);
-
+		
 		if (!nomeValido) {
 			System.out.println("SERVIDOR: Nome inválido!");
 			return CadastroEnum.ERRO;

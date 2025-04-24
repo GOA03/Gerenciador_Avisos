@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -43,7 +44,7 @@ public class AvisosView extends JFrame {
 
     private static final long serialVersionUID = 1L;
     private JPanel contentPane;
-    private JButton btnAtualizar;
+    private JButton btnInscrever;
     private JButton btnVoltar;
     private ClienteModel cliente;
     private MainView telaPrincipal;
@@ -53,9 +54,9 @@ public class AvisosView extends JFrame {
     private JPanel panelAvisos;
     private List<Integer> idsCategorias;
     private List<CategoriaModel> categoriasCadastradas; // Ensure this is initialized
+    private List<CategoriaModel> todasCategorias;
 
     public AvisosView(ClienteModel cliente, String token, List<CategoriaModel> categorias) {
-        System.out.println("Categorias passadas por áraentro avisos view " + categorias);
         this.cliente = cliente;
         this.token = token;
         this.idsCategorias = new ArrayList<>();
@@ -116,36 +117,70 @@ public class AvisosView extends JFrame {
 
         // Rodapé com botões estilizados
         JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
-        btnAtualizar = new JButton("Atualizar");
-        btnAtualizar.setFont(new Font("Poppins", Font.BOLD, 14));
-        btnAtualizar.setBackground(new Color(30, 144, 255));
-        btnAtualizar.setForeground(Color.WHITE);
-        btnAtualizar.setFocusPainted(false);
-        footerPanel.add(btnAtualizar);
+        btnInscrever = new JButton("+ Categorias");
+        customizeButton(btnInscrever, Color.GREEN);
+        footerPanel.add(btnInscrever);
 
-        btnVoltar = new JButton("Voltar");
-        btnVoltar.setFont(new Font("Poppins", Font.BOLD, 14));
-        btnVoltar.setBackground(Color.RED);
-        btnVoltar.setForeground(Color.WHITE);
-        btnVoltar.setFocusPainted(false);
-        footerPanel.add(btnVoltar);
+        btnInscrever.addActionListener(new ActionListener() {
+            private List<CategoriaModel> categoriasDisponiveis = new ArrayList<>(); // Initialize the list
+
+            public void actionPerformed(ActionEvent e) {
+                categoriasDisponiveis.clear(); // Clear the list before adding new categories
+                for (CategoriaModel categoriaModel : todasCategorias) {
+                    boolean isCadastrada = false; // Flag to check if the category is already registered
+                    for (CategoriaModel categoriaCadastrada : categoriasCadastradas) {
+                        if (categoriaModel.getId() == categoriaCadastrada.getId()) {
+                            isCadastrada = true; // Set flag if the category is already registered
+                            break; // No need to check further
+                        }
+                    }
+                    if (!isCadastrada) { // If the category is not registered, add it to the list
+                        categoriasDisponiveis.add(categoriaModel);
+                    }
+                }
+                InscricaoCategoriasView inscricaoCategoriaView = new InscricaoCategoriasView(cliente,
+                        categoriasDisponiveis);
+                inscricaoCategoriaView.setVisible(true);
+            }
+        });
 
         // Adicionando o botão "Ver Avisos"
         JButton btnVerAvisos = new JButton("Ver Avisos");
-        btnVerAvisos.setFont(new Font("Poppins", Font.BOLD, 14));
-        btnVerAvisos.setBackground(new Color(30, 144, 255));
-        btnVerAvisos.setForeground(Color.WHITE);
-        btnVerAvisos.setFocusPainted(false);
+        customizeButton(btnVerAvisos, new Color(30, 144, 255));
         footerPanel.add(btnVerAvisos);
 
         // Adicionando o ActionListener para o botão "Ver Avisos"
         btnVerAvisos.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-            	// Clear the existing alerts from the panel
+                // Clear the existing alerts from the panel
                 panelAvisos.removeAll();
-                pedirAvisos(getCategoriasSelecionadas());
+                List<Integer> categoriasSelecionadas = getCategoriasSelecionadas();
+                if (!categoriasSelecionadas.isEmpty()) {
+                    pedirAvisos(categoriasSelecionadas);
+                } else {
+                    JOptionPane.showMessageDialog(null, "Por favor, selecione uma categoria.", "Nenhuma Categoria Selecionada",
+                            JOptionPane.WARNING_MESSAGE);
+                }
             }
         });
+
+        // Adicionando o botão "Desinscrever-se"
+        JButton btnDesinscrever = new JButton("Desinscrever");
+        customizeButton(btnDesinscrever, Color.RED); // Personaliza o botão com a cor vermelha
+        footerPanel.add(btnDesinscrever);
+
+        // Adicionando o ActionListener para o botão "Desinscrever-se"
+        btnDesinscrever.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                // Chama o método para descadastrar o usuário das categorias selecionadas
+                descadastrarUsuario(getCategoriasSelecionadas());
+            }
+        });
+
+        // Adicionando o botão "Voltar"
+        btnVoltar = new JButton("Voltar");
+        customizeButton(btnVoltar, Color.ORANGE);
+        footerPanel.add(btnVoltar);
 
         contentPane.add(footerPanel, BorderLayout.SOUTH);
 
@@ -178,8 +213,26 @@ public class AvisosView extends JFrame {
 
             // Converte a resposta para JSON
             JSONController jsonController = new JSONController();
-            JSONObject json = jsonController.changeToJSON(resposta);
+            JSONObject json = jsonController.changeToJSONCategoria(resposta);
 
+            // Envia a mensagem ao cliente
+            cliente.enviarMensagem(json);
+        }
+    }
+
+    protected void descadastrarUsuario(List<Integer> categorias) {
+        for (Integer categoria : categorias) {
+            // Cria um objeto RespostaModel para enviar ao cliente
+            RespostaModel resposta = new RespostaModel();
+            resposta.setOperacao("descadastrarUsuarioCategoria"); // Define a operação
+            resposta.setToken(token); // Usando o token do cliente
+            resposta.setIdCategoria(categoria);
+            resposta.setRa(token); // Adicionando o RA do usuário
+
+            // Converte a resposta para JSON
+            JSONController jsonController = new JSONController();
+            JSONObject json = jsonController.changeToJSONCategoria(resposta);
+            
             // Envia a mensagem ao cliente
             cliente.enviarMensagem(json);
         }
@@ -199,6 +252,7 @@ public class AvisosView extends JFrame {
     }
 
     public void atualizarCategorias(List<CategoriaModel> categorias) {
+        this.todasCategorias = categorias;
         atualizarCategoriasTela(categorias, idsCategorias);
     }
 
@@ -206,10 +260,8 @@ public class AvisosView extends JFrame {
         panelCategorias.removeAll(); // Remove todos os componentes existentes
         checkBoxes.clear(); // Limpa a lista de checkboxes
 
-        System.out.println(categorias);
-        System.out.println(idsCategorias);
         // Verifica se há categorias
-        if (categorias.isEmpty() || categorias == null) {
+        if (categorias == null || categorias.isEmpty()) {
             JOptionPane.showMessageDialog(null, "Você não não está inscrito em nenhuma categoria!", "Sem inscrições",
                     JOptionPane.INFORMATION_MESSAGE);
         } else {
@@ -249,7 +301,7 @@ public class AvisosView extends JFrame {
         txtDescricao.setEditable(false);
         txtDescricao.setFont(new Font("Poppins", Font.PLAIN, 14));
         txtDescricao.setBorder(null);
-        
+
         // Definindo a altura máxima para 2 linhas
         int linhaAltura = txtDescricao.getFontMetrics(txtDescricao.getFont()).getHeight();
         txtDescricao.setPreferredSize(new java.awt.Dimension(0, linhaAltura * 2)); // 2 linhas de altura
@@ -267,67 +319,84 @@ public class AvisosView extends JFrame {
     }
 
     public void atualizarAvisos(List<AvisoModel> avisos) {
-    	
-        // Create a map to group alerts by category
+        // Verifica se a lista de avisos é nula ou vazia
+        if (avisos == null || avisos.isEmpty()) {
+            return; // Retorna sem fazer nada
+        }
+
+        // Mapa para agrupar avisos por categoria
         Map<String, List<AvisoModel>> avisosPorCategoria = new HashMap<>();
 
-        // Group alerts by category
+        // Agrupa avisos por categoria
         for (AvisoModel aviso : avisos) {
-            String categoriaNome = aviso.getCategoria() != null ? aviso.getCategoria().getNome() : "Sem Categoria";
+            if (aviso == null) {
+                continue; // Ignora avisos nulos
+            }
+
+            String categoriaNome = Optional.ofNullable(aviso.getCategoria())
+                                           .map(categoria -> categoria.getNome())
+                                           .orElse("Sem Categoria");
             avisosPorCategoria.putIfAbsent(categoriaNome, new ArrayList<>());
             avisosPorCategoria.get(categoriaNome).add(aviso);
         }
 
-        // Create a panel for each category and add alerts to it
+        // Cria um painel para cada categoria e adiciona os avisos a ele
         for (Map.Entry<String, List<AvisoModel>> entry : avisosPorCategoria.entrySet()) {
             String categoriaNome = entry.getKey();
             List<AvisoModel> listaAvisos = entry.getValue();
 
-            // Create a new panel for the category
+            // Cria um novo painel para a categoria
             JPanel panelCategoria = new JPanel();
             panelCategoria.setBorder(BorderFactory.createTitledBorder(categoriaNome));
             panelCategoria.setLayout(new BoxLayout(panelCategoria, BoxLayout.Y_AXIS));
 
-            // Add each alert to the category panel
+            // Adiciona cada aviso ao painel da categoria
             for (AvisoModel aviso : listaAvisos) {
-                JPanel avisoPanel = new JPanel(new BorderLayout());
-                avisoPanel.setBorder(BorderFactory.createCompoundBorder(new LineBorder(Color.LIGHT_GRAY, 2),
-                        new EmptyBorder(10, 10, 10, 10)));
-                avisoPanel.setBackground(new Color(245, 245, 245));
-
-                JLabel lblTitulo = new JLabel(aviso.getTitulo());
-                lblTitulo.setFont(new Font("Poppins", Font.BOLD, 16));
-                avisoPanel.add(lblTitulo, BorderLayout.NORTH);
-
-                JTextArea txtDescricao = new JTextArea(aviso.getDescricao());
-                txtDescricao.setWrapStyleWord(true);
-                txtDescricao.setLineWrap(true);
-                txtDescricao.setEditable(false);
-                txtDescricao.setFont(new Font("Poppins", Font.PLAIN, 14));
-                txtDescricao.setBorder(null);
-                
-                // Definindo a altura máxima para 2 linhas
-                int linhaAltura = txtDescricao.getFontMetrics(txtDescricao.getFont()).getHeight();
-                txtDescricao.setPreferredSize(new java.awt.Dimension(0, linhaAltura * 2)); // 2 linhas de altura
-
-                // Verifica se a descrição excede 2 linhas
-                if (txtDescricao.getLineCount() > 2) {
-                    avisoPanel.add(new JScrollPane(txtDescricao), BorderLayout.CENTER);
-                } else {
-                    avisoPanel.add(txtDescricao, BorderLayout.CENTER);
-                }
-
+                JPanel avisoPanel = criarPainelAviso(aviso);
                 panelCategoria.add(avisoPanel);
             }
 
-            // Add the category panel to the main alerts panel
+            // Adiciona o painel da categoria ao painel principal de avisos
             panelAvisos.add(panelCategoria);
         }
 
-        // Refresh the panel to show the new alerts
+        // Atualiza o painel para mostrar os novos avisos
         panelAvisos.revalidate();
         panelAvisos.repaint();
     }
+
+    // Método auxiliar para criar o painel de um aviso
+    private JPanel criarPainelAviso(AvisoModel aviso) {
+        JPanel avisoPanel = new JPanel(new BorderLayout());
+        avisoPanel.setBorder(BorderFactory.createCompoundBorder(new LineBorder(Color.LIGHT_GRAY, 2),
+                new EmptyBorder(10, 10, 10, 10)));
+        avisoPanel.setBackground(new Color(245, 245, 245));
+
+        JLabel lblTitulo = new JLabel(aviso.getTitulo());
+        lblTitulo.setFont(new Font("Poppins", Font.BOLD, 16));
+        avisoPanel.add(lblTitulo, BorderLayout.NORTH);
+
+        JTextArea txtDescricao = new JTextArea(aviso.getDescricao());
+        txtDescricao.setWrapStyleWord(true);
+        txtDescricao.setLineWrap(true);
+        txtDescricao.setEditable(false);
+        txtDescricao.setFont(new Font("Poppins", Font.PLAIN, 14));
+        txtDescricao.setBorder(null);
+
+        // Definindo a altura máxima para 2 linhas
+        int linhaAltura = txtDescricao.getFontMetrics(txtDescricao.getFont()).getHeight();
+        txtDescricao.setPreferredSize(new java.awt.Dimension(0, linhaAltura * 2)); // 2 linhas de altura
+
+        // Verifica se a descrição excede 2 linhas
+        if (txtDescricao.getLineCount() > 2) {
+            avisoPanel.add(new JScrollPane(txtDescricao), BorderLayout.CENTER);
+        } else {
+            avisoPanel.add(txtDescricao, BorderLayout.CENTER);
+        }
+
+        return avisoPanel;
+    }
+
     public List<Integer> getCategoriasSelecionadas() {
         List<Integer> categoriasSelecionadas = new ArrayList<>();
 
@@ -348,10 +417,11 @@ public class AvisosView extends JFrame {
 
         // Verifica se nenhuma categoria foi selecionada
         if (categoriasSelecionadas.isEmpty()) {
-        	// Clear the existing alerts from the panel
+            // Clear the existing alerts from the panel
             panelAvisos.removeAll();
             // Exibe uma mensagem para o usuário
-            JOptionPane.showMessageDialog(null, "Por favor, selecione uma categoria.", "Nenhuma Categoria Selecionada", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(null, "Por favor, selecione uma categoria.", "Nenhuma Categoria Selecionada",
+                    JOptionPane.WARNING_MESSAGE);
         }
 
         return categoriasSelecionadas;
@@ -359,5 +429,35 @@ public class AvisosView extends JFrame {
 
     public void setTelaPrincipal(MainView telaPrincipal) {
         this.telaPrincipal = telaPrincipal;
+    }
+
+    // Método para customizar botões
+    private void customizeButton(JButton button, Color backgroundColor) {
+        button.setFont(new Font("Poppins", Font.BOLD, 14));
+        button.setBackground(backgroundColor);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setOpaque(true);
+        button.setPreferredSize(new java.awt.Dimension(150, 40)); // Tamanho do botão
+
+        // Efeito de hover
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(button.getBackground().darker());
+            }
+
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(backgroundColor);
+            }
+
+            public void mousePressed(java.awt.event.MouseEvent evt) {
+                button.setBackground(button.getBackground().brighter());
+            }
+
+            public void mouseReleased(java.awt.event.MouseEvent evt) {
+                button.setBackground(button.getBackground().darker());
+            }
+        });
     }
 }

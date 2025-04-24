@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 
+import javax.swing.JOptionPane;
+
 import dao.BancoDados;
 import dao.UsuarioDAO;
 import enums.LoginEnum;
@@ -63,7 +65,10 @@ public class LoginController {
 			conn = BancoDados.conectar();
 
 			if (conn == null) {
-				throw new SQLException("Conexao com o banco de dados falhou.");
+
+				JOptionPane.showMessageDialog(null, "Conexao com o banco de dados falhou.", "Erro com o Banco de Dados",
+						JOptionPane.ERROR_MESSAGE);
+				 return false; 
 			}
 
 			String ra = usuario.getRa();
@@ -86,7 +91,9 @@ public class LoginController {
 			conn = BancoDados.conectar();
 
 			if (conn == null) {
-				throw new SQLException("Conexao com o banco de dados falhou.");
+				JOptionPane.showMessageDialog(null, "Conexao com o banco de dados falhou.", "Erro com o Banco de Dados",
+						JOptionPane.ERROR_MESSAGE);
+				return null;
 			}
 
 			String token = new UsuarioDAO(conn).getRA(ra);

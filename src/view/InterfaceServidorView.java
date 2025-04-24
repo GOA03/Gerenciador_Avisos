@@ -26,9 +26,11 @@ import model.ServidorModel;
 public class InterfaceServidorView extends JFrame {
 
     private static final long serialVersionUID = 1L;
-    private JTextField portaServidor;	
+    private JTextField portaServidor;    
     private JTextArea retornoServidor;
     private JButton conectarServidor;
+    private JButton btnUsuariosLogados;
+	private UsuariosLogadosView usuariosLogadosView;
 
     public InterfaceServidorView() {
         setTitle("Servidor");
@@ -42,10 +44,12 @@ public class InterfaceServidorView extends JFrame {
         JLabel labelPorta = new JLabel("Porta do Servidor:");
         portaServidor = new JTextField(10);
         conectarServidor = new JButton("Conectar");
+        btnUsuariosLogados = new JButton("Usuários Logados"); // Botão para abrir a tela de usuários logados
 
         painelSuperior.add(labelPorta);
         painelSuperior.add(portaServidor);
         painelSuperior.add(conectarServidor);
+        painelSuperior.add(btnUsuariosLogados); // Adicionando o botão ao painel superior
 
         JPanel painelCentral = new JPanel();
         painelCentral.setLayout(new BorderLayout());
@@ -64,14 +68,16 @@ public class InterfaceServidorView extends JFrame {
             @Override
             public void windowClosing(WindowEvent e) {
                 try {
-					deslogarTodosUsuarios();
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} // Chama a função para deslogar todos os usuários
+                    deslogarTodosUsuarios();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                } // Chama a função para deslogar todos os usuários
                 System.exit(0); // Encerra a aplicação
             }
         });
+
+        // Adiciona o ActionListener para o botão de "Usuários Logados"
+        btnUsuariosLogados.addActionListener(e -> abrirUsuariosLogados());
     }
 
     private void deslogarTodosUsuarios() throws IOException {
@@ -79,7 +85,7 @@ public class InterfaceServidorView extends JFrame {
             Connection conn = BancoDados.conectar(); // Conecta ao banco de dados
             UsuarioDAO usuarioDAO = new UsuarioDAO(conn);
             usuarioDAO.deslogarTodosUsuarios(); // Chama o método para deslogar todos os usuários
-            System.out.println("Todos os usuários foram deslogados com sucesso.");
+            System.out.println("Todos os usuários foram deslogados com sucesso.\n");
         } catch (SQLException e) {
             System.err.println("Erro ao deslogar todos os usuários: " + e.getMessage());
         } finally {
@@ -89,6 +95,14 @@ public class InterfaceServidorView extends JFrame {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void abrirUsuariosLogados() {
+        // Cria uma nova instância da tela de usuários logados e exibe-a
+        UsuariosLogadosView usuariosLogadosView = new UsuariosLogadosView();
+        this.usuariosLogadosView = usuariosLogadosView;
+        usuariosLogadosView.setLocationRelativeTo(this); // Centraliza a janela
+        usuariosLogadosView.setVisible(true);
     }
 
     public JTextField getPortaServidor() {
@@ -102,6 +116,13 @@ public class InterfaceServidorView extends JFrame {
     public void adicionarActionListenerConectar(ActionListener listener) {
         conectarServidor.addActionListener(listener);
     }
+    
+    public void atualizarListaLogados() {
+    	
+    	if(usuariosLogadosView != null) {
+    		usuariosLogadosView.atualizarUsuariosLogados();
+    	}
+    }
 
     public static void main(String[] args) {
         EventQueue.invokeLater(new Runnable() {
@@ -109,10 +130,13 @@ public class InterfaceServidorView extends JFrame {
                 try {
                     InterfaceServidorView view = new InterfaceServidorView();
                     ServidorModel model = new ServidorModel();
+                    model.setTelaServidor(view);
+                    
                     new ServidorController(view, model);
 
                     view.setLocationRelativeTo(null); // Centraliza a janela
                     view.setVisible(true);
+                    
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

@@ -76,7 +76,7 @@ public class AdminMainView extends JFrame {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 
-				dispose();
+				setVisible(false);
 
 				UsuarioModel usuario = new UsuarioModel();
 				usuario.setOperacao("listarUsuarios");
@@ -94,7 +94,6 @@ public class AdminMainView extends JFrame {
 		btnGerenciarAvisos.addActionListener(new ActionListener() {
 		    @Override
 		    public void actionPerformed(ActionEvent e) {
-		        dispose(); // Fecha a tela atual
         
 		        // Cria um objeto UsuarioModel para listar os avisos
 		        RespostaModel resp = new RespostaModel();
@@ -104,7 +103,7 @@ public class AdminMainView extends JFrame {
 
 		        // Converte o usuário para JSON
 		        JSONController jsonController = new JSONController();
-		        JSONObject res = jsonController.changeToJSON(resp);
+		        JSONObject res = jsonController.changeToJSONCategoria(resp);
 
 		        // Envia a requisição ao servidor
 		        cliente.enviarMensagem(res);
@@ -114,8 +113,6 @@ public class AdminMainView extends JFrame {
 		btnGerenciarCategorias.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-
-				dispose();
 
 				UsuarioModel usuario = new UsuarioModel();
 				usuario.setOperacao("listarCategorias");
@@ -140,8 +137,9 @@ public class AdminMainView extends JFrame {
 				JSONController jsonController = new JSONController();
 				JSONObject res = jsonController.changeToJSON(usuario);
 
-				dispose();
+				setVisible(false);
 				if (cliente != null) {
+					cliente.setTelaAdmin(null);
 					cliente.enviarMensagem(res);
 				}
 			}

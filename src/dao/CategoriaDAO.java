@@ -39,7 +39,7 @@ public class CategoriaDAO {
             while (rs.next()) {
                 CategoriaModel categoria = new CategoriaModel();
                 categoria.setId(rs.getInt("id"));
-                categoria.setNome(rs.getString("nome"));
+                categoria.setNome(rs.getString("nome").toUpperCase());
                 categorias.add(categoria);
             }
         } catch (SQLException e) {

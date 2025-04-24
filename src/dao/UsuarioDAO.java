@@ -71,7 +71,7 @@ public class UsuarioDAO {
 	        st.setString(1, usuario.getRa());
 	        st.setString(2, usuario.getSenha());
 	        st.setString(3, usuario.getNome());
-	        st.setBoolean(4, false); // Corrigido para incluir o valor de "logado"
+	        st.setBoolean(4, false);
 	        st.executeUpdate();
 	    } catch (SQLException e) {
 	        System.err.println("Erro ao adicionar o usuário: " + e.getMessage());
@@ -188,8 +188,24 @@ public class UsuarioDAO {
 	        throw new SQLException("Erro ao deslogar todos os usuários", e);
 	    }
 	}
-
-	public Connection getConn() {
-		return conn;
+	
+	public List<UsuarioModel> listarLogados() throws SQLException {
+	    List<UsuarioModel> usuariosLogados = new ArrayList<>();
+	    String query = "SELECT ra, senha, nome FROM usuario WHERE logado = true";
+	    
+	    try (PreparedStatement stmt = conn.prepareStatement(query);
+	         ResultSet rs = stmt.executeQuery()) {
+	        while (rs.next()) {
+	            UsuarioModel usuario = new UsuarioModel();
+	            usuario.setRa(rs.getString("ra"));
+	            usuario.setSenha(rs.getString("senha"));
+	            usuario.setNome(rs.getString("nome"));
+	            usuariosLogados.add(usuario);
+	        }
+	    } catch (SQLException e) {
+	        throw new SQLException("Erro ao listar usuários logados", e);
+	    }
+	    
+	    return usuariosLogados; // Retorna a lista de usuários logados
 	}
 }

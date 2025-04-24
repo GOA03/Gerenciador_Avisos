@@ -6,7 +6,7 @@ public class RespostaModel {
 
     private String operacao;
     private String ra;
-    private String senha;
+    private String senha; 
     private String nome;
     private int status;
     private String token; 
@@ -18,6 +18,7 @@ public class RespostaModel {
     private List<AvisoModel> avisos;
     private AvisoModel aviso;
     private int idCategoria;
+    private int categoriaId;
     private List<Integer> idsCategorias;
     private String nomeCategoria;
     private int id;
@@ -60,15 +61,18 @@ public class RespostaModel {
     public void setAvisos(List<AvisoModel> avisos) { this.avisos = avisos; }
     
     public AvisoModel getAviso() { return aviso; }
-	public void setAviso(AvisoModel aviso) { this.aviso = aviso; }
+    public void setAviso(AvisoModel aviso) { this.aviso = aviso; }
 
     public int getIdCategoria() { return idCategoria; }
     public void setIdCategoria(int idCategoria) { this.idCategoria = idCategoria; }
     
+    public int getCategoriaId() { return categoriaId; }
+    public void setCategoriaId(int categoriaId) { this.categoriaId = categoriaId; }
+    
     public List<Integer> getIdsCategorias() { return idsCategorias; }
-	public void setIdsCategorias(List<Integer> idsCategorias) { this.idsCategorias = idsCategorias; }
-	
-	public String getNomeCategoria() { return nomeCategoria; }
+    public void setIdsCategorias(List<Integer> idsCategorias) { this.idsCategorias = idsCategorias; }
+    
+    public String getNomeCategoria() { return nomeCategoria; }
     public void setNomeCategoria(String nomeCategoria) { this.nomeCategoria = nomeCategoria; }
     
     public int getId() { return id; }
@@ -89,7 +93,8 @@ public class RespostaModel {
         if (usuarios != null) sb.append("usuarios=").append(usuarios).append(", ");
         if (categorias != null) sb.append("categorias=").append(categorias).append(", ");
         if (categoria != null) sb.append("categoria=").append(categoria).append(", ");
-        if (idsCategorias != null) sb.append("idsCategorias=").append(categorias).append(", ");
+        if (idsCategorias != null) sb.append("idsCategorias=").append(idsCategorias).append(", ");
+        if (idCategoria >= 0) sb.append("idCategoria=").append(idCategoria).append(", "); // Modificação aqui
         if (avisos != null) sb.append("avisos=").append(avisos).append(", ");
         if (aviso != null) sb.append("aviso=").append(aviso).append(", ");
         if (id != 0) sb.append("id=").append(id).append(", ");

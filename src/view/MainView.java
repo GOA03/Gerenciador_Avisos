@@ -60,7 +60,6 @@ public class MainView extends JFrame {
 
         // Adicionar ActionListener para o botão de avisos
         btnAvisos.addActionListener(e -> {
-            ocultarTela();
             UsuarioModel usuario = new UsuarioModel();
 			usuario.setOperacao("listarUsuarioCategorias");
 			usuario.setToken(token); // Usando o token do cliente
@@ -114,7 +113,7 @@ public class MainView extends JFrame {
         dispose(); // Fecha a janela após o logout
     }
     
-    private void ocultarTela() {
+    public void ocultarTela() {
         this.setVisible(false);
     }
     

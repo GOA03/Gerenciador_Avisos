@@ -43,7 +43,7 @@ public class AvisoDAO {
             if (rs.next()) {
                 categoria = new CategoriaModel();
                 categoria.setId(rs.getInt("id"));
-                categoria.setNome(rs.getString("nome"));
+                categoria.setNome(rs.getString("nome").toUpperCase());
             }
         } catch (SQLException e) {
             throw new SQLException("Erro ao buscar categoria pelo ID", e);
@@ -93,7 +93,7 @@ public class AvisoDAO {
             while (rs.next()) {
                 CategoriaModel categoria = new CategoriaModel();
                 categoria.setId(rs.getInt("idCategoria"));
-                categoria.setNome(rs.getString("nome"));
+                categoria.setNome(rs.getString("nome").toUpperCase());
 
                 AvisoModel aviso = new AvisoModel();
                 aviso.setId(rs.getInt("id"));
@@ -159,5 +159,36 @@ public class AvisoDAO {
         } catch (SQLException e) {
             throw new SQLException("Erro ao excluir o aviso", e);
         }
+    }
+
+    public List<AvisoModel> getAvisosPorUsuario(String ra) throws SQLException {
+        List<AvisoModel> avisos = new ArrayList<>();
+        String query = "SELECT a.id, a.titulo, a.descricao, a.idCategoria, c.nome AS nomeCategoria " +
+                       "FROM aviso a " +
+                       "JOIN categorias c ON a.idCategoria = c.id " +
+                       "JOIN inscricao i ON a.idCategoria = i.idCategoria " +
+                       "WHERE i.raUsuario = ?"; // Filtra pelo RA do usuário
+
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, ra);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                CategoriaModel categoria = new CategoriaModel();
+                categoria.setId(rs.getInt("idCategoria"));
+                categoria.setNome(rs.getString("nomeCategoria"));
+
+                AvisoModel aviso = new AvisoModel();
+                aviso.setId(rs.getInt("id"));
+                aviso.setTitulo(rs.getString("titulo"));
+                aviso.setDescricao(rs.getString("descricao"));
+                aviso.setCategoria(categoria);
+                avisos.add(aviso);
+            }
+        } catch (SQLException e) {
+            throw new SQLException("Erro ao listar avisos por usuário", e);
+        }
+
+        return avisos;
     }
 }

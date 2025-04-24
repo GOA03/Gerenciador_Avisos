@@ -264,11 +264,18 @@ public class JSONController {
 
 			// Lógica para lidar com uma única categoria
 			if (jsonObject.containsKey("categoria")) {
-				JSONObject categoriaJson = (JSONObject) jsonObject.get("categoria");
-				CategoriaModel categoria = new CategoriaModel();
-				categoria.setId(Integer.parseInt(categoriaJson.get("id").toString()));
-				categoria.setNome(getStringFromJson(categoriaJson, "nome"));
-				resposta.setCategoria(categoria); // Define o usuário na resposta
+				Object categoriaObj = jsonObject.get("categoria");
+
+				if (categoriaObj instanceof JSONObject) {
+					JSONObject categoriaJson = (JSONObject) categoriaObj;
+					CategoriaModel categoria = new CategoriaModel();
+					categoria.setId(Integer.parseInt(categoriaJson.get("id").toString()));
+					categoria.setNome(getStringFromJson(categoriaJson, "nome"));
+					resposta.setCategoria(categoria); // Define a categoria na resposta
+				} else if (categoriaObj instanceof Number) { // Garante que pega qualquer tipo numérico (Integer, Long,
+																// etc.)
+					resposta.setIdCategoria(((Number) categoriaObj).intValue()); // Converte para int corretamente
+				}
 			}
 
 			// Lógica para lidar com a lista de avisos
@@ -334,6 +341,31 @@ public class JSONController {
 		}
 	}
 
+	public RespostaModel changeListarAvisosToJson(String msg) {
+		try {
+			if (msg == null || msg.trim().isEmpty()) {
+				return null;
+			}
+
+			JSONParser parser = new JSONParser();
+			JSONObject jsonObject = (JSONObject) parser.parse(msg);
+			RespostaModel resposta = new RespostaModel();
+
+			// Define campos básicos
+			resposta.setOperacao(getStringFromJson(jsonObject, "operacao"));
+			resposta.setToken(getStringFromJson(jsonObject, "token"));
+			resposta.setIdCategoria(getIntFromJson(jsonObject, "categoria"));
+
+			return resposta;
+		} catch (ParseException e) {
+			System.err.println("Erro ao parsear JSON: " + e.getMessage());
+			return null;
+		} catch (Exception e) {
+			System.err.println("Erro inesperado: " + e.getMessage());
+			return null;
+		}
+	}
+
 	// Converte uma string JSON de registro em UsuarioModel
 	public UsuarioModel changeRegisterJSON(String mensagemRecebida) {
 		try {
@@ -363,6 +395,30 @@ public class JSONController {
 		}
 		Object value = json.get(key);
 		return value != null ? value.toString() : null; // Retorna o valor como String ou null se não existir
+	}
+
+	private int getIntFromJson(JSONObject jsonObject, String key) {
+		Object value = jsonObject.get(key);
+
+		if (value == null) {
+			System.err.println("Chave '" + key + "' não encontrada ou é null.");
+			return 0; // Valor padrão
+		}
+
+		if (value instanceof Number) {
+			return ((Number) value).intValue(); // Converte qualquer tipo numérico (Integer, Long, etc.)
+		}
+
+		if (value instanceof String) {
+			try {
+				return Integer.parseInt((String) value); // Converte String para int
+			} catch (NumberFormatException e) {
+				System.err.println("Erro ao converter '" + key + "' para inteiro: " + value);
+			}
+		}
+
+		System.err.println("Valor para a chave '" + key + "' não é um número válido.");
+		return 0; // Valor padrão
 	}
 
 	@SuppressWarnings("unchecked")
@@ -530,6 +586,59 @@ public class JSONController {
 		// Adiciona o token e o id da categoria
 		addIfNotNull(resp, "token", resposta.getToken());
 		addIfNotNull(resp, "id", resposta.getIdCategoria());
+
+		return resp;
+	}
+	@SuppressWarnings("unchecked")
+	public JSONObject changeToJSONSalvarCategoria(RespostaModel resposta) {
+		JSONObject resp = new JSONObject();
+
+		// Adiciona os campos principais
+		addIfNotNull(resp, "operacao", resposta.getOperacao());
+		addIfNotNull(resp, "ra", resposta.getRa());
+
+		// Criação do objeto aviso
+		if (resposta.getAviso() != null) {
+			JSONObject avisoJson = new JSONObject();
+			addIfNotNull(avisoJson, "id", resposta.getAviso().getId()); // ID do aviso
+			addIfNotNull(avisoJson, "titulo", resposta.getAviso().getTitulo()); // Título do aviso
+			addIfNotNull(avisoJson, "descricao", resposta.getAviso().getDescricao()); // Descrição do aviso
+
+			// Adiciona a categoria ao objeto aviso
+			if (resposta.getAviso().getCategoria() != null) {
+				addIfNotNull(avisoJson, "categoria", resposta.getAviso().getCategoria().getId()); // ID da categoria
+			}
+
+			// Adiciona o objeto aviso ao JSON principal
+			resp.put("aviso", avisoJson);
+		}
+
+		// Adiciona o token e o id da categoria
+		addIfNotNull(resp, "token", resposta.getToken());
+
+		return resp;
+	}
+
+	public JSONObject changeToJSONCategoria(RespostaModel resposta) {
+		JSONObject resp = new JSONObject();
+
+		// Adiciona os campos principais
+		addIfNotNull(resp, "operacao", resposta.getOperacao());
+		addIfNotNull(resp, "ra", resposta.getRa());
+		addIfNotNull(resp, "token", resposta.getToken());
+		addIfNotNull(resp, "categoria", resposta.getIdCategoria());
+
+		return resp;
+	}
+
+	public JSONObject changeToJSONIncreverseCategoria(RespostaModel resposta) {
+		JSONObject resp = new JSONObject();
+
+		// Adiciona os campos principais
+		addIfNotNull(resp, "operacao", resposta.getOperacao());
+		addIfNotNull(resp, "ra", resposta.getRa());
+		addIfNotNull(resp, "token", resposta.getToken());
+		addIfNotNull(resp, "categoria", resposta.getCategoriaId());
 
 		return resp;
 	}
